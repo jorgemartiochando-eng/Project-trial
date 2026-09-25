@@ -73,6 +73,12 @@ class ValidationResult:
 COLUMN_ALIASES: dict[str, str] = {
     # --- Company export ---
     "user_id": "employee_id",
+    "userid": "employee_id",
+    "user_nr": "employee_id",
+    "user_no": "employee_id",
+    "user_number": "employee_id",
+    "user": "employee_id",
+    "employee_id_user_id": "employee_id",
     "gender": "sex",
     "position_title": "job_title",
     "job_classification": "job_family",
@@ -215,7 +221,8 @@ def validate_employees(raw: pd.DataFrame) -> tuple[pd.DataFrame, ValidationResul
     df["location"] = df["location"].where(df["location"].notna(), df["country"]).astype(str).str.strip()
     df["cost_center"] = df["cost_center"].where(df["cost_center"].notna(), df["department"]).astype(str).str.strip()
 
-    df["hire_date"] = pd.to_datetime(df["hire_date"], errors="coerce")
+    # Day first (European: 01.03.2019 = 1 March); ISO dates (2019-03-01) are unaffected.
+    df["hire_date"] = pd.to_datetime(df["hire_date"], errors="coerce", dayfirst=True, format="mixed")
 
     invalid = (
         df["base_salary"].isna() | (df["base_salary"] <= 0)

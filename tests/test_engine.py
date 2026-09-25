@@ -237,3 +237,30 @@ def test_missing_column_message_lists_what_was_found():
     _, res = validate_employees(pd.DataFrame({"User ID": [1], "Salary": [1]}))
     assert not res.ok
     assert "Columns found in your file: User ID, Salary" in res.errors[0]
+
+
+def test_excel_with_title_rows_above_header_and_userid_spelling():
+    import io as _io
+    from app.data_io import read_table
+
+    data = _company_style_export().rename(columns={"User ID": "UserID"})
+    buf = _io.BytesIO()
+    with pd.ExcelWriter(buf) as xw:
+        pd.DataFrame([["HR export - salaried employees"], ["Run date 2026-09-01"], [None]]).to_excel(
+            xw, index=False, header=False, startrow=0)
+        data.to_excel(xw, index=False, startrow=3)
+    out, res = validate_employees(read_table(buf.getvalue(), "export.xlsx"))
+    assert res.ok, res.errors
+    assert len(out) == 200
+    assert out["employee_id"].iloc[0] == "E00001"
+
+
+def test_semicolon_csv_with_title_row():
+    from app.data_io import read_table
+
+    data = _company_style_export()
+    csv = "Salary report;;\n" + data.to_csv(index=False, sep=";", decimal=",")
+    out, res = validate_employees(read_table(csv.encode("utf-8"), "export.csv"))
+    assert res.ok, res.errors
+    assert len(out) == 200
+    assert out["fte"].between(0.5, 1).all()
