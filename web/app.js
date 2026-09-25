@@ -57,7 +57,7 @@ function downloadCsv(filename, rows) {
 
 // -------------------------------------------------------------- chart setup
 function chartDefaults() {
-  Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+  Chart.defaults.font.family = '"Helvetica Neue", Helvetica, Arial, system-ui, sans-serif';
   Chart.defaults.color = cssVar("--ink-2");
   Chart.defaults.borderColor = cssVar("--grid");
   Chart.defaults.plugins.legend.labels.boxWidth = 10;
