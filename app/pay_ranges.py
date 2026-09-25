@@ -54,8 +54,8 @@ def right_to_information(df: pd.DataFrame, employee_id: str, settings: Settings)
         n = len(grp)
         by_sex[sex] = {
             "headcount": n,
-            "mean_hourly_total": _clean(grp["hourly_total"].mean()) if n else None,
-            "mean_hourly_basic": _clean(grp["hourly_basic"].mean()) if n else None,
+            "mean_pay_total": _clean(grp["pay_total"].mean()) if n else None,
+            "mean_pay_basic": _clean(grp["pay_basic"].mean()) if n else None,
             "mean_annual_total_fte": _clean(grp["annual_total_fte"].mean()) if n else None,
         }
         if 0 < n < settings.min_group_size:
@@ -63,20 +63,25 @@ def right_to_information(df: pd.DataFrame, employee_id: str, settings: Settings)
                 f"Only {n} {'women' if sex == 'F' else 'men'} in this category: the average may allow "
                 "individual pay to be inferred. Consult your DPO on how to disclose it (Art. 7 & 12)."
             )
+    monthly = settings.pay_basis == "monthly"
+    unit = "gross monthly pay (full-time equivalent)" if monthly else "gross hourly pay"
+    fmt = (lambda x: f"{x:,.0f}") if monthly else (lambda x: f"{x:,.2f}")
     letter = (
         f"Dear colleague,\n\n"
         f"In response to your request under Article 7 of Directive (EU) 2023/970, please find below "
         f"your individual pay level and the average pay levels, broken down by sex, for the category "
         f"of workers performing the same work or work of equal value as you at {me['legal_entity']} ({me['category_label']}).\n\n"
-        f"Your pay: {me['hourly_total']:.2f} per hour "
-        f"(basic {me['hourly_basic']:.2f}, complementary {me['hourly_complementary']:.2f}); "
-        f"annual FTE-equivalent total {me['annual_total_fte']:,.0f}.\n"
+        f"Your {unit}: {fmt(me['pay_total'])} "
+        f"(basic {fmt(me['pay_basic'])}; variable and other components {fmt(me['pay_complementary'])}).\n"
     )
+    if monthly and me["fte"] < 1:
+        letter += (f"You work {me['fte']:.0%} of full time, so your actual gross monthly pay is "
+                   f"{fmt(me['pay_total'] * me['fte'])}. Comparisons use full-time equivalents.\n")
+    letter += "\n"
     for sex, label in (("F", "Women"), ("M", "Men")):
         s = by_sex[sex]
         if s["headcount"]:
-            letter += (f"{label} in your category ({s['headcount']}): average {s['mean_hourly_total']:.2f} per hour; "
-                       f"annual FTE-equivalent {s['mean_annual_total_fte']:,.0f}.\n")
+            letter += f"{label} in your category ({s['headcount']}): average {unit} {fmt(s['mean_pay_total'])}.\n"
         else:
             letter += f"{label} in your category: no comparator.\n"
     letter += (
@@ -92,13 +97,15 @@ def right_to_information(df: pd.DataFrame, employee_id: str, settings: Settings)
             "legal_entity": me["legal_entity"],
             "category_id": me["category_id"],
             "category_label": me["category_label"],
-            "hourly_total": _clean(me["hourly_total"]),
-            "hourly_basic": _clean(me["hourly_basic"]),
-            "hourly_complementary": _clean(me["hourly_complementary"]),
+            "pay_total": _clean(me["pay_total"]),
+            "pay_basic": _clean(me["pay_basic"]),
+            "pay_complementary": _clean(me["pay_complementary"]),
+            "fte": _clean(me["fte"]),
             "annual_total_fte": _clean(me["annual_total_fte"]),
         },
         "category_averages": by_sex,
         "warnings": warnings,
+        "pay_basis": settings.pay_basis,
         "response_deadline_days": 60,
         "letter": letter,
     }

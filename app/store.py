@@ -64,7 +64,7 @@ class Store:
         with self._lock:
             if self._cache is None:
                 ref = pd.Timestamp(self.settings.reference_date) if self.settings.reference_date else None
-                prepared = prepare_employees(self.dataset.employees, ref)
+                prepared = prepare_employees(self.dataset.employees, ref, self.settings.pay_basis)
                 self._cache = assign_categories(prepared, self.dataset.job_evaluation, self.settings)
             df, meta = self._cache
         if entity and entity != "ALL":

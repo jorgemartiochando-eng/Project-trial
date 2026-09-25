@@ -1,9 +1,9 @@
 """Input data contract, validation and derived pay fields.
 
-Directive (EU) 2023/970 measures pay as *gross hourly pay* (Art. 3 & 9) and
+Directive (EU) 2023/970 compares pay on a like-for-like basis (Art. 3 & 9) and
 splits it into "ordinary basic wage or salary" and "complementary or variable
-components". Everything downstream works off the derived hourly columns
-produced by :func:`prepare_employees`.
+components". Everything downstream works off the derived pay_* columns
+produced by :func:`prepare_employees` (monthly FTE or hourly).
 """
 from __future__ import annotations
 
@@ -157,8 +157,26 @@ def validate_job_evaluation(raw: pd.DataFrame) -> tuple[pd.DataFrame, Validation
     return df, res
 
 
-def prepare_employees(df: pd.DataFrame, reference_date: pd.Timestamp | None = None) -> pd.DataFrame:
-    """Add derived hourly pay fields used by all metrics."""
+PAY_BASES = ("monthly", "hourly")
+
+
+def prepare_employees(df: pd.DataFrame, reference_date: pd.Timestamp | None = None,
+                      pay_basis: str = "monthly") -> pd.DataFrame:
+    """Add derived pay fields used by all metrics.
+
+    All comparisons use *full-time-equivalent* pay so that part-time and
+    full-time workers are comparable, as the Directive requires. The unit is
+    either gross monthly FTE pay (default) or gross hourly pay (the Directive's
+    reference unit). Within one employer both give the same gap percentages,
+    because full-time hours are the same for everyone.
+
+    Basis-neutral columns (in the chosen unit):
+      pay_basic, pay_complementary, pay_variable, pay_total
+      pay_to_annual    multiply a pay amount by this to get the annual cost for this person
+      pay_to_base_fte  multiply a pay amount by this to get the annual FTE base salary change
+    """
+    if pay_basis not in PAY_BASES:
+        raise ValueError(f"pay_basis must be one of {PAY_BASES}")
     out = df.copy()
     ref = reference_date or pd.Timestamp.today().normalize()
 
@@ -174,6 +192,23 @@ def prepare_employees(df: pd.DataFrame, reference_date: pd.Timestamp | None = No
     out["hourly_complementary"] = complementary / annual_hours_paid
     out["hourly_variable"] = out["variable_pay"] / annual_hours_paid
     out["hourly_total"] = out["hourly_basic"] + out["hourly_complementary"]
+
+    # Monthly full-time-equivalent pay: actually-paid amounts are scaled up by 1/fte.
+    out["monthly_basic"] = out["base_salary"] / 12
+    out["monthly_complementary"] = complementary / (12 * out["fte"])
+    out["monthly_variable"] = out["variable_pay"] / (12 * out["fte"])
+    out["monthly_total"] = out["monthly_basic"] + out["monthly_complementary"]
+
+    prefix = "monthly" if pay_basis == "monthly" else "hourly"
+    for part in ("basic", "complementary", "variable", "total"):
+        out[f"pay_{part}"] = out[f"{prefix}_{part}"]
+    if pay_basis == "monthly":
+        out["pay_to_annual"] = 12 * out["fte"]
+        out["pay_to_base_fte"] = 12.0
+    else:
+        out["pay_to_annual"] = annual_hours_paid
+        out["pay_to_base_fte"] = annual_hours_full_time
+
     out["annual_complementary"] = complementary
     out["annual_total_fte"] = out["base_salary"] + complementary / out["fte"]
     out["receives_complementary"] = complementary > 0

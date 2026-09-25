@@ -67,7 +67,7 @@ def adjusted_gap(df: pd.DataFrame) -> dict:
     if n_f < 5 or n_m < 5:
         return {"available": False, "reason": "Need at least 5 women and 5 men for a regression."}
 
-    y = np.log(data["hourly_total"].to_numpy())
+    y = np.log(data["pay_total"].to_numpy())
     female = (data["sex"] == "F").astype(float).to_numpy()
     X, groups = _design(data)
     cols = ["const", "female"] + list(X.columns)

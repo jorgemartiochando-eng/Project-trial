@@ -3,6 +3,8 @@ company, with an audit trail of who changed what (the Directive expects the
 methodology to be explainable and gender-neutral)."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -37,3 +39,5 @@ class Settings(BaseModel):
     # '<legal_entity>|<category_id>' -> objective, gender-neutral justification
     justifications: dict[str, str] = Field(default_factory=dict)
     reference_date: str | None = None  # ISO date for tenure; defaults to today
+    # Unit for all pay amounts: gross monthly full-time-equivalent pay, or gross hourly pay.
+    pay_basis: Literal["monthly", "hourly"] = "monthly"

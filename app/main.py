@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import adjusted, metrics, remediation
+from . import adjusted, art9, metrics, remediation
 from .config import Settings
 from .job_evaluation import roles_by_category
 from .metrics import _clean, assessment_key
@@ -136,6 +136,7 @@ def report(entity: str | None = Entity):
     cats = metrics.category_gaps(df, store.settings)
     return {
         "entity": entity or "ALL",
+        "pay_basis": store.settings.pay_basis,
         "indicators": metrics.headline_indicators(df),
         "quartiles": metrics.quartile_bands(df),
         "categories": cats,
@@ -145,6 +146,48 @@ def report(entity: str | None = Entity):
         "by_family": metrics.breakdown(df, "job_family"),
         "by_level": metrics.breakdown(df, "job_level"),
     }
+
+
+@app.get("/api/art9")
+def art9_indicators(entity: str | None = Entity,
+                    group_by: str = Query("category", pattern="^(category|job_level)$")):
+    """Art. 9(1)(a)-(g) with the formulas and the numbers that went into them."""
+    df, _ = _df(entity)
+    return art9.indicators(df, store.settings, group_by)
+
+
+@app.get("/api/export/art9.csv")
+def export_art9(entity: str | None = Entity,
+                group_by: str = Query("category", pattern="^(category|job_level)$")):
+    df, _ = _df(entity)
+    r = art9.indicators(df, store.settings, group_by)
+    unit = r["pay_basis"]
+    rows = []
+    for x in "abcd":
+        rows.append({"indicator": x, "title": r["titles"][x], "scope": entity or "ALL", "group": "",
+                     "value_pct": r[x]["gap_pct"], "men": r[x]["men"], "women": r[x]["women"],
+                     "n_men": r[x]["n_men"], "n_women": r[x]["n_women"], "unit": unit, "formula": r["formulas"][x]})
+    e = r["e"]
+    rows.append({"indicator": "e", "title": r["titles"]["e"], "scope": entity or "ALL", "group": "men",
+                 "value_pct": e["men_pct"], "n_men": e["men_total"], "formula": r["formulas"]["e"]})
+    rows.append({"indicator": "e", "title": r["titles"]["e"], "scope": entity or "ALL", "group": "women",
+                 "value_pct": e["women_pct"], "n_women": e["women_total"], "formula": r["formulas"]["e"]})
+    for q in r["f"]:
+        rows.append({"indicator": "f", "title": r["titles"]["f"], "scope": entity or "ALL",
+                     "group": f"Q{q['quartile']} {q['label']}: women", "value_pct": q["women_pct"], "formula": r["formulas"]["f"]})
+        rows.append({"indicator": "f", "title": r["titles"]["f"], "scope": entity or "ALL",
+                     "group": f"Q{q['quartile']} {q['label']}: men", "value_pct": q["men_pct"], "formula": r["formulas"]["f"]})
+    for g in r["g"]:
+        for x in "abcd":
+            rows.append({"indicator": f"g-{x}", "title": f"{r['titles']['g']}: {r['titles'][x]}", "scope": g["legal_entity"],
+                         "group": g["group"], "value_pct": g[f"{x}_gap_pct"], "men": g[f"{x}_men"], "women": g[f"{x}_women"],
+                         "n_men": g["men"], "n_women": g["women"], "unit": unit})
+    buf = io.StringIO()
+    pd.DataFrame(rows).convert_dtypes().to_csv(buf, index=False)
+    return StreamingResponse(
+        iter([buf.getvalue()]), media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=art9_indicators_{entity or 'ALL'}.csv"},
+    )
 
 
 @app.get("/api/categories/roles")
@@ -188,7 +231,7 @@ def employees(entity: str | None = Entity, category_id: str | None = None, limit
     if category_id:
         df = df[df["category_id"] == category_id]
     cols = ["employee_id", "sex", "job_title", "job_family", "job_level", "legal_entity", "category_id",
-            "fte", "base_salary", "hourly_basic", "hourly_complementary", "hourly_total", "tenure_years"]
+            "fte", "base_salary", "pay_basic", "pay_complementary", "pay_variable", "pay_total", "tenure_years"]
     recs = df[cols].head(limit).to_dict(orient="records")
     return [{k: _clean(v) for k, v in r.items()} for r in recs]
 

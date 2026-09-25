@@ -119,3 +119,34 @@ def test_api_end_to_end():
     csv = "employee_id,sex\n1,F\n"
     bad = c.post("/api/dataset/upload", files={"employees": ("e.csv", csv, "text/csv")})
     assert bad.status_code == 422
+
+
+def test_art9_indicators_match_the_formulas_by_hand():
+    from app.art9 import indicators
+
+    rows = [
+        {"employee_id": "m1", "sex": "M", "base_salary": 60000, "variable_pay": 6000},
+        {"employee_id": "m2", "sex": "M", "base_salary": 48000, "variable_pay": 0},
+        {"employee_id": "f1", "sex": "F", "base_salary": 48000, "variable_pay": 2400},
+        {"employee_id": "f2", "sex": "F", "base_salary": 36000, "variable_pay": 0, "fte": 0.5},
+    ]
+    df = _emp(rows)
+    r = indicators(df, Settings())  # monthly FTE by default
+    # monthly FTE totals: m1 5500, m2 4000 -> mean 4750; f1 4200, f2 3000 -> mean 3600
+    assert r["a"]["men"] == pytest.approx(4750) and r["a"]["women"] == pytest.approx(3600)
+    assert r["a"]["gap_pct"] == pytest.approx((4750 - 3600) / 4750 * 100)
+    # variable pay among recipients only: m1 500 vs f1 200
+    assert r["b"]["gap_pct"] == pytest.approx(60.0) and r["b"]["n_men"] == 1
+    assert r["c"]["gap_pct"] == pytest.approx((4750 - 3600) / 4750 * 100)  # median of 2 = mean
+    assert r["e"]["men_pct"] == pytest.approx(50.0) and r["e"]["women_pct"] == pytest.approx(50.0)
+    assert sum(q["headcount"] for q in r["f"]) == 4
+    assert len(r["g"]) == 1
+
+
+def test_monthly_and_hourly_gaps_agree_within_one_employer():
+    df_raw, _ = validate_employees(synthetic.generate(n=300, seed=5))
+    df_raw = df_raw[df_raw["legal_entity"] == "DE GmbH"]
+    m = headline_indicators(prepare_employees(df_raw, pay_basis="monthly"))
+    h = headline_indicators(prepare_employees(df_raw, pay_basis="hourly"))
+    assert m["mean_gap"] == pytest.approx(h["mean_gap"])
+    assert m["median_gap"] == pytest.approx(h["median_gap"])

@@ -47,13 +47,13 @@ def headline_indicators(df: pd.DataFrame) -> dict:
     return {
         "headcount": {"F": len(f), "M": len(m), "X": int((df["sex"] == "X").sum()), "total": len(df)},
         # (a) and (c): total pay (basic + complementary)
-        "mean_gap": gap(m["hourly_total"], f["hourly_total"], "mean"),
-        "median_gap": gap(m["hourly_total"], f["hourly_total"], "median"),
-        "mean_gap_basic": gap(m["hourly_basic"], f["hourly_basic"], "mean"),
-        "median_gap_basic": gap(m["hourly_basic"], f["hourly_basic"], "median"),
+        "mean_gap": gap(m["pay_total"], f["pay_total"], "mean"),
+        "median_gap": gap(m["pay_total"], f["pay_total"], "median"),
+        "mean_gap_basic": gap(m["pay_basic"], f["pay_basic"], "mean"),
+        "median_gap_basic": gap(m["pay_basic"], f["pay_basic"], "median"),
         # (b) and (d): among those receiving complementary/variable components
-        "mean_gap_complementary": gap(comp_m["hourly_complementary"], comp_f["hourly_complementary"], "mean"),
-        "median_gap_complementary": gap(comp_m["hourly_complementary"], comp_f["hourly_complementary"], "median"),
+        "mean_gap_complementary": gap(comp_m["pay_complementary"], comp_f["pay_complementary"], "mean"),
+        "median_gap_complementary": gap(comp_m["pay_complementary"], comp_f["pay_complementary"], "median"),
         # (e)
         "share_receiving_complementary": {
             "F": _clean(f["receives_complementary"].mean()) if len(f) else None,
@@ -63,9 +63,9 @@ def headline_indicators(df: pd.DataFrame) -> dict:
             "F": _clean(f["receives_variable"].mean()) if len(f) else None,
             "M": _clean(m["receives_variable"].mean()) if len(m) else None,
         },
-        "mean_hourly": {
-            "F": _clean(f["hourly_total"].mean()) if len(f) else None,
-            "M": _clean(m["hourly_total"].mean()) if len(m) else None,
+        "mean_pay": {
+            "F": _clean(f["pay_total"].mean()) if len(f) else None,
+            "M": _clean(m["pay_total"].mean()) if len(m) else None,
         },
     }
 
@@ -73,12 +73,12 @@ def headline_indicators(df: pd.DataFrame) -> dict:
 def quartile_bands(df: pd.DataFrame) -> list[dict]:
     """Art. 9(1)(f): proportion of women/men in each pay quartile band.
 
-    Workers are ranked by hourly total pay and split into four equally sized
+    Workers are ranked by total pay (monthly FTE or hourly) and split into four equally sized
     groups (ties broken by order, as rank(method='first'))."""
     binary = df[df["sex"].isin(["F", "M"])].copy()
     if len(binary) < 4:
         return []
-    binary["q"] = pd.qcut(binary["hourly_total"].rank(method="first"), 4, labels=[1, 2, 3, 4])
+    binary["q"] = pd.qcut(binary["pay_total"].rank(method="first"), 4, labels=[1, 2, 3, 4])
     out = []
     names = {1: "Lower", 2: "Lower middle", 3: "Upper middle", 4: "Upper"}
     for q in [1, 2, 3, 4]:
@@ -90,8 +90,8 @@ def quartile_bands(df: pd.DataFrame) -> list[dict]:
             "headcount": n,
             "share_F": _clean((grp["sex"] == "F").mean()) if n else None,
             "share_M": _clean((grp["sex"] == "M").mean()) if n else None,
-            "min_hourly": _clean(grp["hourly_total"].min()),
-            "max_hourly": _clean(grp["hourly_total"].max()),
+            "min_pay": _clean(grp["pay_total"].min()),
+            "max_pay": _clean(grp["pay_total"].max()),
         })
     return out
 
@@ -110,9 +110,9 @@ def category_gaps(df: pd.DataFrame, settings: Settings) -> list[dict]:
     for (entity, cid, label), grp in df.groupby(["legal_entity", "category_id", "category_label"]):
         key = assessment_key(entity, cid)
         m, f = _split(grp)
-        mean_gap_total = gap(m["hourly_total"], f["hourly_total"], "mean")
-        mean_gap_basic = gap(m["hourly_basic"], f["hourly_basic"], "mean")
-        mean_gap_comp = gap(m["hourly_complementary"], f["hourly_complementary"], "mean")
+        mean_gap_total = gap(m["pay_total"], f["pay_total"], "mean")
+        mean_gap_basic = gap(m["pay_basic"], f["pay_basic"], "mean")
+        mean_gap_comp = gap(m["pay_complementary"], f["pay_complementary"], "mean")
         small = min(len(m), len(f)) < settings.min_group_size
         exceeds = mean_gap_total is not None and abs(mean_gap_total) >= thr
         justification = settings.justifications.get(key, "").strip()
@@ -132,10 +132,10 @@ def category_gaps(df: pd.DataFrame, settings: Settings) -> list[dict]:
             "headcount_F": len(f),
             "headcount_M": len(m),
             "headcount_X": int((grp["sex"] == "X").sum()),
-            "mean_hourly_F": _clean(f["hourly_total"].mean()) if len(f) else None,
-            "mean_hourly_M": _clean(m["hourly_total"].mean()) if len(m) else None,
+            "mean_pay_F": _clean(f["pay_total"].mean()) if len(f) else None,
+            "mean_pay_M": _clean(m["pay_total"].mean()) if len(m) else None,
             "mean_gap": mean_gap_total,
-            "median_gap": gap(m["hourly_total"], f["hourly_total"], "median"),
+            "median_gap": gap(m["pay_total"], f["pay_total"], "median"),
             "mean_gap_basic": mean_gap_basic,
             "mean_gap_complementary": mean_gap_comp,
             "job_families": sorted(grp["job_family"].unique().tolist()),
@@ -156,8 +156,8 @@ def breakdown(df: pd.DataFrame, by: str) -> list[dict]:
             "headcount_F": len(f),
             "headcount_M": len(m),
             "share_F": _clean(len(f) / max(len(f) + len(m), 1)),
-            "mean_gap": gap(m["hourly_total"], f["hourly_total"], "mean"),
-            "median_gap": gap(m["hourly_total"], f["hourly_total"], "median"),
+            "mean_gap": gap(m["pay_total"], f["pay_total"], "mean"),
+            "median_gap": gap(m["pay_total"], f["pay_total"], "median"),
             "part_time_share_F": _clean((f["fte"] < 1).mean()) if len(f) else None,
             "part_time_share_M": _clean((m["fte"] < 1).mean()) if len(m) else None,
         })
@@ -166,17 +166,17 @@ def breakdown(df: pd.DataFrame, by: str) -> list[dict]:
 
 def outliers(df: pd.DataFrame, max_ratio: float = 0.9) -> list[dict]:
     """Individuals paid well below peers of the other sex in the same category:
-    hourly pay below `max_ratio` x the other sex's category median.
+    pay below `max_ratio` x the other sex's category median.
     Comparisons stay within one legal entity (the employer), so country pay
     levels don't create false positives at group level."""
     out = []
     for (_, cid), grp in df.groupby(["legal_entity", "category_id"]):
-        med = grp.groupby("sex")["hourly_total"].median()
+        med = grp.groupby("sex")["pay_total"].median()
         if "F" not in med or "M" not in med:
             continue
         for sex, other in (("F", "M"), ("M", "F")):
             peers = grp[grp["sex"] == sex]
-            low = peers[peers["hourly_total"] < max_ratio * med[other]]
+            low = peers[peers["pay_total"] < max_ratio * med[other]]
             for _, r in low.iterrows():
                 out.append({
                     "employee_id": r["employee_id"],
@@ -184,8 +184,8 @@ def outliers(df: pd.DataFrame, max_ratio: float = 0.9) -> list[dict]:
                     "category_id": cid,
                     "job_title": r["job_title"],
                     "legal_entity": r["legal_entity"],
-                    "hourly_total": _clean(r["hourly_total"]),
+                    "pay_total": _clean(r["pay_total"]),
                     "other_sex_median": _clean(med[other]),
-                    "compa_ratio": _clean(r["hourly_total"] / med[other]),
+                    "compa_ratio": _clean(r["pay_total"] / med[other]),
                 })
     return sorted(out, key=lambda r: r["compa_ratio"])

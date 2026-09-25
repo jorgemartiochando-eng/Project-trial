@@ -10,6 +10,10 @@ const pct = (x, d = 1) => (x === null || x === undefined ? "–" : `${(x * 100).
 const num = (x, d = 0) => (x === null || x === undefined ? "–" : Number(x).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d }));
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const gapCell = (g) => `<td class="num ${g > 0 ? "pos" : g < 0 ? "neg" : ""}">${pct(g)}</td>`;
+const monthly = () => !state.settings || state.settings.pay_basis !== "hourly";
+const money = (x) => num(x, monthly() ? 0 : 2);
+const unitShort = () => (monthly() ? "/month" : "/h");
+const unitLong = () => (monthly() ? "gross monthly pay (FTE)" : "gross hourly pay");
 const entityParam = () => (state.entity && state.entity !== "ALL" ? `?entity=${encodeURIComponent(state.entity)}` : "");
 
 async function api(path, opts = {}) {
@@ -121,6 +125,7 @@ async function refresh() {
 }
 
 async function loadTab(tab) {
+  if (tab === "art9") await renderArt9();
   if (tab === "explain") await renderExplain();
   if (tab === "remediation") await runRemediation();
   if (tab === "ranges") await renderRanges();
@@ -135,7 +140,7 @@ function renderOverview() {
   const ind = r.indicators;
   const nAssess = r.assessment_required.length;
   $("#tiles").innerHTML = [
-    tile("Mean gender pay gap", pct(ind.mean_gap), "Gross hourly pay, Art. 9(1)(a)"),
+    tile("Mean gender pay gap", pct(ind.mean_gap), monthly() ? "Monthly FTE pay, Art. 9(1)(a)" : "Hourly pay, Art. 9(1)(a)"),
     tile("Median gender pay gap", pct(ind.median_gap), "Art. 9(1)(c)"),
     tile("Mean gap, basic pay only", pct(ind.mean_gap_basic), `Median ${pct(ind.median_gap_basic)}`),
     tile("Categories needing joint assessment", `${nAssess} / ${r.categories.length}`,
@@ -158,7 +163,7 @@ function renderOverview() {
       indexAxis: "y",
       scales: { x: { stacked: true, max: 100, ticks: { callback: (v) => `${v}%` } }, y: { stacked: true, grid: { display: false } } },
       plugins: {
-        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.x.toFixed(1)}% (${num(q[c.dataIndex].min_hourly, 2)}–${num(q[c.dataIndex].max_hourly, 2)}/h)` } },
+        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.x.toFixed(1)}% (${money(q[c.dataIndex].min_pay)}–${money(q[c.dataIndex].max_pay)}${unitShort()})` } },
       },
     },
   });
@@ -183,9 +188,9 @@ function renderOverview() {
   table($("#comp-table"), ["Indicator", { label: "Women", num: true }, { label: "Men", num: true }], [
     `<tr><td>Receiving complementary/variable pay</td><td class="num">${pct(ind.share_receiving_complementary.F)}</td><td class="num">${pct(ind.share_receiving_complementary.M)}</td></tr>`,
     `<tr><td>Receiving variable pay (bonus/commission)</td><td class="num">${pct(ind.share_receiving_variable.F)}</td><td class="num">${pct(ind.share_receiving_variable.M)}</td></tr>`,
-    `<tr><td>Mean gross hourly pay</td><td class="num">${num(ind.mean_hourly.F, 2)}</td><td class="num">${num(ind.mean_hourly.M, 2)}</td></tr>`,
-    `<tr><td>Mean gap in complementary pay</td><td class="num" colspan="2">${pct(ind.mean_gap_complementary)}</td></tr>`,
-    `<tr><td>Median gap in complementary pay</td><td class="num" colspan="2">${pct(ind.median_gap_complementary)}</td></tr>`,
+    `<tr><td>Mean ${unitLong()}</td><td class="num">${money(ind.mean_pay.F)}</td><td class="num">${money(ind.mean_pay.M)}</td></tr>`,
+    `<tr><td>Mean gap in all complementary pay (variable + allowances + benefits)</td><td class="num" colspan="2">${pct(ind.mean_gap_complementary)}</td></tr>`,
+    `<tr><td>Median gap in all complementary pay</td><td class="num" colspan="2">${pct(ind.median_gap_complementary)}</td></tr>`,
   ]);
 
   table($("#obligations"), ["Legal entity", { label: "Headcount", num: true }, "Obligation"], r.by_entity.map((e) => {
@@ -203,6 +208,50 @@ function renderOverview() {
   bd({ el: $("#by-level"), data: r.by_level }, "job_level", "Level");
 }
 
+// ------------------------------------------------------------------- art. 9
+async function renderArt9() {
+  const groupBy = $("#art9-group").value;
+  const sep = entityParam() ? "&" : "?";
+  const r = await api(`/api/art9${entityParam()}${sep}group_by=${groupBy}`);
+  const scope = state.entity === "ALL" ? "all legal entities combined (for official reporting, select one legal entity)" : state.entity;
+  $("#art9-intro").textContent = `Scope: ${scope}. Pay amounts are ${unitLong()} in the reporting currency. ` +
+    "Remuneration = basic pay + variable pay + allowances + benefits in kind. Variable pay (b, d) is compared among the workers who received it. " +
+    "A positive gap means men are paid more.";
+  $("#export-art9").href = `/api/export/art9.csv${entityParam()}${sep}group_by=${groupBy}`;
+
+  const g = (v) => (v === null || v === undefined ? "–" : `${v.toFixed(1)}%`);
+  const calc = (x, word) => x.men === null || x.women === null ? "Not enough data"
+    : `(${money(x.men)} − ${money(x.women)}) / ${money(x.men)} × 100 = <strong>${g(x.gap_pct)}</strong><br>` +
+      `${word} of men ${money(x.men)} (${num(x.n_men)} men) · women ${money(x.women)} (${num(x.n_women)} women)`;
+  const card = (k, body) => `<div class="card"><div class="ind-head"><span class="ind-letter">${k}</span><h3>${esc(r.titles[k])}</h3></div>
+    <p class="formula">${esc(r.formulas[k])}</p>${body}</div>`;
+  const gapCard = (k, word) => card(k, `<div class="ind-value ${r[k].gap_pct > 0 ? "pos" : r[k].gap_pct < 0 ? "neg" : ""}">${g(r[k].gap_pct)}</div>
+    <div class="calc">${calc(r[k], word)}</div>`);
+  const e = r.e;
+  $("#art9-cards").innerHTML = [
+    gapCard("a", "Mean"), gapCard("b", "Mean"), gapCard("c", "Median"), gapCard("d", "Median"),
+    card("e", `<div class="ind-value split"><div>${g(e.men_pct)}<small>of men</small></div><div>${g(e.women_pct)}<small>of women</small></div></div>
+      <div class="calc">Men: ${num(e.men_receiving)} / ${num(e.men_total)} × 100 = <strong>${g(e.men_pct)}</strong><br>
+      Women: ${num(e.women_receiving)} / ${num(e.women_total)} × 100 = <strong>${g(e.women_pct)}</strong></div>`),
+  ].join("");
+
+  $("#art9-f-title").textContent = r.titles.f;
+  $("#art9-f-formula").textContent = r.formulas.f;
+  const w = cssVar("--women"), m = cssVar("--men");
+  table($("#art9-f"), ["Quartile", { label: "Pay range", num: true }, { label: "Workers", num: true }, { label: "% women", num: true }, { label: "% men", num: true }, "Women / men"],
+    r.f.map((q) => `<tr><td>Q${q.quartile} · ${esc(q.label)}</td><td class="num">${money(q.min_pay)} – ${money(q.max_pay)}</td><td class="num">${num(q.headcount)}</td>
+      <td class="num">${g(q.women_pct)}</td><td class="num">${g(q.men_pct)}</td>
+      <td><div class="minibar" title="Women ${g(q.women_pct)} · Men ${g(q.men_pct)}"><span style="width:${q.women_pct}%;background:${w}"></span><span style="width:${q.men_pct}%;background:${m}"></span></div></td></tr>`));
+
+  $("#art9-g-title").textContent = r.titles.g;
+  $("#art9-g-formula").textContent = r.formulas.g;
+  const gc = (v) => `<td class="num ${v > 0 ? "pos" : v < 0 ? "neg" : ""}">${g(v)}</td>`;
+  table($("#art9-g"), ["Entity", groupBy === "job_level" ? "Job level" : "Category", { label: "Women", num: true }, { label: "Men", num: true },
+    { label: "a) Mean gap", num: true }, { label: "b) Mean variable gap", num: true }, { label: "c) Median gap", num: true }, { label: "d) Median variable gap", num: true }],
+    r.g.map((x) => `<tr><td>${esc(x.legal_entity)}</td><td>${esc(x.group)}${x.small_group ? ' <span class="tag" title="Fewer than the minimum group size of one sex">small</span>' : ""}</td>
+      <td class="num">${x.women}</td><td class="num">${x.men}</td>${gc(x.a_gap_pct)}${gc(x.b_gap_pct)}${gc(x.c_gap_pct)}${gc(x.d_gap_pct)}</tr>`));
+}
+
 // --------------------------------------------------------------- categories
 function renderCategories() {
   const r = state.report;
@@ -210,13 +259,13 @@ function renderCategories() {
   $("#export-cats").href = `/api/export/categories.csv${entityParam()}`;
   table($("#cat-table"), [
     "Entity", "Category", "Job families", { label: "W", num: true }, { label: "M", num: true },
-    { label: "Mean /h W", num: true }, { label: "Mean /h M", num: true },
+    { label: `Mean ${unitShort()} W`, num: true }, { label: `Mean ${unitShort()} M`, num: true },
     { label: "Mean gap", num: true }, { label: "Median gap", num: true }, { label: "Basic", num: true }, { label: "Complem.", num: true }, "Status",
   ], r.categories.map((c) => `<tr data-cat="${esc(c.key)}" class="${c.key === state.selectedCat ? "selected" : ""}">
       <td>${esc(c.legal_entity)}</td><td>${esc(c.category_label)}${c.small_group ? ' <span class="tag" title="Fewer than the minimum group size of one sex">small</span>' : ""}</td>
       <td class="small">${esc(c.job_families.join(", "))}</td>
       <td class="num">${c.headcount_F}</td><td class="num">${c.headcount_M}</td>
-      <td class="num">${num(c.mean_hourly_F, 2)}</td><td class="num">${num(c.mean_hourly_M, 2)}</td>
+      <td class="num">${money(c.mean_pay_F)}</td><td class="num">${money(c.mean_pay_M)}</td>
       ${gapCell(c.mean_gap)}${gapCell(c.median_gap)}${gapCell(c.mean_gap_basic)}${gapCell(c.mean_gap_complementary)}
       <td>${statusBadge(c.status)}</td></tr>`));
   document.querySelectorAll("#cat-table tbody tr").forEach((tr) => tr.addEventListener("click", () => selectCategory(tr.dataset.cat)));
@@ -245,7 +294,7 @@ async function selectCategory(key) {
 
   // deterministic jitter so dots don't move on re-render
   const jitter = (id) => { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return ((h % 1000) / 1000 - 0.5) * 0.5; };
-  const pts = (sex, x) => emps.filter((e) => e.sex === sex).map((e) => ({ x: x + jitter(e.employee_id), y: e.hourly_total, e }));
+  const pts = (sex, x) => emps.filter((e) => e.sex === sex).map((e) => ({ x: x + jitter(e.employee_id), y: e.pay_total, e }));
   const ring = cssVar("--surface");
   makeChart("strip", "chart-cat-strip", {
     type: "scatter",
@@ -258,10 +307,10 @@ async function selectCategory(key) {
     options: {
       scales: {
         x: { min: -0.5, max: 1.5, ticks: { stepSize: 1, callback: (v) => ({ 0: "Women", 1: "Men" }[v] ?? "") }, grid: { display: false } },
-        y: { title: { display: true, text: "Gross hourly pay" } },
+        y: { title: { display: true, text: unitLong()[0].toUpperCase() + unitLong().slice(1) } },
       },
       plugins: {
-        tooltip: { callbacks: { label: (c) => { const e = c.raw.e; return `${e.employee_id} · ${e.job_title} · ${e.legal_entity} · ${num(e.hourly_total, 2)}/h · FTE ${e.fte}`; } } },
+        tooltip: { callbacks: { label: (c) => { const e = c.raw.e; return `${e.employee_id} · ${e.job_title} · ${e.legal_entity} · ${money(e.pay_total)}${unitShort()} · FTE ${e.fte}`; } } },
       },
     },
   });
@@ -278,9 +327,9 @@ async function saveJustification() {
 
 async function renderOutliers() {
   const rows = await api(`/api/outliers${entityParam()}`);
-  table($("#outliers"), ["Employee", "Sex", "Role", "Entity", "Category", { label: "Pay /h", num: true }, { label: "Other-sex median", num: true }, { label: "Ratio", num: true }],
+  table($("#outliers"), ["Employee", "Sex", "Role", "Entity", "Category", { label: `Pay ${unitShort()}`, num: true }, { label: "Other-sex median", num: true }, { label: "Ratio", num: true }],
     rows.slice(0, 200).map((o) => `<tr><td>${esc(o.employee_id)}</td><td>${esc(o.sex)}</td><td>${esc(o.job_title)}</td><td>${esc(o.legal_entity)}</td><td>${esc(o.category_id)}</td>
-      <td class="num">${num(o.hourly_total, 2)}</td><td class="num">${num(o.other_sex_median, 2)}</td><td class="num">${pct(o.compa_ratio, 0)}</td></tr>`));
+      <td class="num">${money(o.pay_total)}</td><td class="num">${money(o.other_sex_median)}</td><td class="num">${pct(o.compa_ratio, 0)}</td></tr>`));
   if (rows.length > 200) $("#outliers").insertAdjacentHTML("beforeend", `<tfoot><tr><td colspan="8" class="muted small">Showing 200 of ${rows.length}</td></tr></tfoot>`);
 }
 
@@ -293,7 +342,7 @@ async function renderExplain() {
   }
   const d = a.decomposition;
   $("#adj-tiles").innerHTML = [
-    tile("Raw gap (geometric)", pct(d.raw_gap_pct), "Difference in mean log hourly pay"),
+    tile("Raw gap (geometric)", pct(d.raw_gap_pct), "Difference in mean log pay"),
     tile("Explained by factors", pct(d.explained_share, 0), "Share of the raw gap"),
     tile("Adjusted (unexplained) gap", pct(a.adjusted_gap), `95% CI ${pct(a.ci95[0])} to ${pct(a.ci95[1])}`),
     tile("Statistically significant?", a.significant ? "Yes" : "No", a.significant ? "✕ Investigate: like-for-like pay differs" : "✓ Not distinguishable from zero"),
@@ -376,9 +425,9 @@ async function runRti() {
     $("#rti-warn").innerHTML = r.warnings.map((w) => `<div class="msg warn">${esc(w)}</div>`).join("");
     const cf = r.category_averages;
     $("#rti-tiles").innerHTML = [
-      tile("Your hourly pay", num(r.employee.hourly_total, 2), `${esc(r.employee.job_title)} · ${esc(r.employee.legal_entity)} · ${esc(r.employee.category_label)}`),
-      tile("Women in category", num(cf.F.mean_hourly_total, 2), `${cf.F.headcount} people`),
-      tile("Men in category", num(cf.M.mean_hourly_total, 2), `${cf.M.headcount} people`),
+      tile(monthly() ? "Your monthly pay (FTE)" : "Your hourly pay", money(r.employee.pay_total), `${esc(r.employee.job_title)} · ${esc(r.employee.legal_entity)} · ${esc(r.employee.category_label)}`),
+      tile("Women in category (average)", money(cf.F.mean_pay_total), `${cf.F.headcount} people`),
+      tile("Men in category (average)", money(cf.M.mean_pay_total), `${cf.M.headcount} people`),
       tile("Reply deadline", `${r.response_deadline_days} days`, "From the date of request"),
     ].join("");
     $("#rti-letter").textContent = r.letter;
@@ -402,6 +451,7 @@ function renderSettings() {
   f.elements.gap_threshold.value = +(s.gap_threshold * 100).toFixed(2);
   f.elements.min_group_size.value = s.min_group_size;
   f.elements.reference_date.value = s.reference_date || "";
+  f.elements.pay_basis.value = s.pay_basis || "monthly";
 }
 
 async function renderDataTab() {
@@ -421,6 +471,7 @@ async function submitSettings(ev) {
   s.gap_threshold = Number(f.elements.gap_threshold.value) / 100;
   s.min_group_size = Number(f.elements.min_group_size.value);
   s.reference_date = f.elements.reference_date.value || null;
+  s.pay_basis = f.elements.pay_basis.value;
   try {
     await api("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) });
     toast("Settings applied");
@@ -470,6 +521,7 @@ function wire() {
   $("#run-rem").addEventListener("click", runRemediation);
   $("#dl-adjustments").addEventListener("click", () => state.remediation && downloadCsv("pay_adjustments.csv", state.remediation.adjustments));
   $("#rti-go").addEventListener("click", runRti);
+  $("#art9-group").addEventListener("change", renderArt9);
   $("#rti-id").addEventListener("keydown", (e) => e.key === "Enter" && runRti());
   $("#rti-copy").addEventListener("click", async () => { await navigator.clipboard.writeText($("#rti-letter").textContent); toast("Copied"); });
   $("#settings-form").addEventListener("submit", submitSettings);

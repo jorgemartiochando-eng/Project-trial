@@ -37,15 +37,30 @@ decisions you have to own, and how to grow this into production software.
 
 ## 2. How the engine computes things
 
-**Hourly pay.** The Directive compares gross *hourly* pay, which makes full-time
-and part-time staff comparable:
+**Pay basis.** All comparisons use *full-time-equivalent* (FTE) pay, so
+part-time and full-time staff are comparable. By default amounts are shown as
+**gross monthly FTE pay**. Switch to hourly (the Directive's reference unit) in
+Data & settings. Within one employer both give identical gap percentages.
 
 ```
-hourly_basic         = base_salary (at 100% FTE) / (full_time_weekly_hours × 52)
-hourly_complementary = (variable + allowances + benefits_in_kind) / (fte × full_time_weekly_hours × 52)
-hourly_total         = hourly_basic + hourly_complementary
-gap                  = (mean_men − mean_women) / mean_men      # positive = men paid more
+monthly_basic    = base_salary (at 100% FTE) / 12
+monthly_variable = variable_pay / (12 × fte)
+monthly_total    = monthly_basic + (variable + allowances + benefits_in_kind) / (12 × fte)
 ```
+
+**The seven Art. 9 indicators** (tab *Pay gap metrics (Art. 9)*):
+
+| | Indicator | Formula |
+|---|---|---|
+| a | Overall gender pay gap | (mean remuneration of men − mean remuneration of women) / mean remuneration of men × 100 |
+| b | Gap in complementary / variable pay | (mean variable pay of men − mean variable pay of women) / mean variable pay of men × 100, among workers who received variable pay |
+| c | Median pay gap | (median pay of men − median pay of women) / median pay of men × 100 |
+| d | Median gap in variable pay | (median variable pay of men − median variable pay of women) / median variable pay of men × 100, among recipients |
+| e | Share receiving variable pay | men with variable pay / total men × 100, and the same for women |
+| f | Pay quartiles | Rank all workers by total pay, split into four equal groups, and report the % of women and men in each |
+| g | Gap by category of workers | a) to d) for each category of equal value (or each job level), within each legal entity |
+
+The tab shows each formula filled in with the actual numbers, and exports everything as CSV.
 
 **Categories of workers.** Each role gets a 1–5 score on the four Art. 4 factors.
 The weighted total is mapped to 0–100 points, and roles are grouped into bands

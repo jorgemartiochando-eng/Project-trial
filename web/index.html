@@ -27,6 +27,7 @@
 
 <nav class="tabs" role="tablist">
   <button data-tab="overview" class="active">Overview</button>
+  <button data-tab="art9">Pay gap metrics (Art. 9)</button>
   <button data-tab="categories">Categories &amp; Art. 10</button>
   <button data-tab="explain">Explain the gap</button>
   <button data-tab="remediation">Remediation</button>
@@ -43,7 +44,7 @@
     <div class="grid2">
       <div class="card">
         <h3>Pay quartile bands <span class="tag">Art. 9(1)(f)</span></h3>
-        <p class="muted small">Share of women and men in each quarter of the workforce ranked by gross hourly pay.</p>
+        <p class="muted small">Share of women and men in each quarter of the workforce ranked by total pay (full-time equivalent).</p>
         <div class="chart-box"><canvas id="chart-quartiles"></canvas></div>
       </div>
       <div class="card">
@@ -54,7 +55,7 @@
     </div>
     <div class="grid2">
       <div class="card">
-        <h3>Complementary &amp; variable pay <span class="tag">Art. 9(1)(b)(d)(e)</span></h3>
+        <h3>Complementary &amp; variable pay</h3>
         <table class="data" id="comp-table"></table>
       </div>
       <div class="card">
@@ -72,6 +73,34 @@
     </div>
   </section>
 
+  <!-- ART. 9 -->
+  <section id="tab-art9" class="tab">
+    <div class="card">
+      <h3>Pay gap metrics <span class="tag">Directive (EU) 2023/970, Art. 9(1)</span></h3>
+      <p class="muted small" id="art9-intro"></p>
+      <p><a id="export-art9" class="button secondary" href="#">Download all indicators (CSV)</a></p>
+    </div>
+    <div class="ind-grid" id="art9-cards"></div>
+    <div class="card">
+      <div class="ind-head"><span class="ind-letter">f</span><h3 id="art9-f-title"></h3></div>
+      <p class="formula" id="art9-f-formula"></p>
+      <table class="data" id="art9-f"></table>
+    </div>
+    <div class="card">
+      <div class="ind-head"><span class="ind-letter">g</span><h3 id="art9-g-title"></h3></div>
+      <p class="formula" id="art9-g-formula"></p>
+      <div class="controls">
+        <label>Group workers by
+          <select id="art9-group">
+            <option value="category">Category of equal value (job evaluation)</option>
+            <option value="job_level">Job level</option>
+          </select>
+        </label>
+      </div>
+      <div class="table-scroll limit"><table class="data" id="art9-g"></table></div>
+    </div>
+  </section>
+
   <!-- CATEGORIES -->
   <section id="tab-categories" class="tab">
     <div class="card">
@@ -86,7 +115,7 @@
       <h3 id="cat-detail-title"></h3>
       <div class="grid2">
         <div>
-          <p class="muted small">Each dot is one employee's gross hourly pay. Hover for details.</p>
+          <p class="muted small">Each dot is one employee's total pay (full-time equivalent). Hover for details.</p>
           <div class="chart-box tall"><canvas id="chart-cat-strip"></canvas></div>
         </div>
         <div>
@@ -101,7 +130,7 @@
     </div>
     <div class="card">
       <h3>Individuals paid well below the other sex's category median</h3>
-      <p class="muted small">Hourly pay below 90% of the other sex's median in the same category and legal entity — review these first.</p>
+      <p class="muted small">Pay below 90% of the other sex's median in the same category and legal entity — review these first.</p>
       <div class="table-scroll limit"><table class="data" id="outliers"></table></div>
     </div>
   </section>
@@ -218,6 +247,12 @@
           <label>Gap threshold (%) <input type="number" step="0.5" min="0.5" max="50" name="gap_threshold"></label>
           <label>Minimum group size <input type="number" step="1" min="1" max="50" name="min_group_size"></label>
           <label>Reference date <input type="date" name="reference_date"></label>
+          <label>Pay shown as
+            <select name="pay_basis">
+              <option value="monthly">Monthly, full-time equivalent</option>
+              <option value="hourly">Hourly</option>
+            </select>
+          </label>
           <button type="submit">Apply settings</button>
         </form>
       </div>
