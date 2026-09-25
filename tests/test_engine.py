@@ -264,3 +264,11 @@ def test_semicolon_csv_with_title_row():
     assert res.ok, res.errors
     assert len(out) == 200
     assert out["fte"].between(0.5, 1).all()
+
+
+def test_hire_dates_iso_and_european():
+    from app.schema import _parse_dates
+
+    out = _parse_dates(pd.Series(["2019-03-01", "01.03.2019", "13/02/2020", "2020-12-22 00:00:00", None]))
+    assert [d.strftime("%Y-%m-%d") if pd.notna(d) else None for d in out] == \
+        ["2019-03-01", "2019-03-01", "2020-02-13", "2020-12-22", None]

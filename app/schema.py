@@ -144,6 +144,18 @@ def _parse_number(v):
     return pd.to_numeric(t, errors="coerce")
 
 
+def _parse_dates(col: pd.Series) -> pd.Series:
+    """Excel dates pass through. Text dates: ISO (2019-03-01) first, then
+    European day-first formats (01.03.2019, 01/03/2019 = 1 March)."""
+    if pd.api.types.is_datetime64_any_dtype(col):
+        return col
+    iso = pd.to_datetime(col, errors="coerce", format="ISO8601")
+    rest = col[iso.isna() & col.notna()]
+    if len(rest):
+        iso.loc[rest.index] = pd.to_datetime(rest.astype(str), errors="coerce", dayfirst=True, format="mixed")
+    return iso
+
+
 def _to_numeric(col: pd.Series) -> pd.Series:
     if not pd.api.types.is_numeric_dtype(col):
         col = col.astype(object).map(_parse_number)
@@ -221,8 +233,7 @@ def validate_employees(raw: pd.DataFrame) -> tuple[pd.DataFrame, ValidationResul
     df["location"] = df["location"].where(df["location"].notna(), df["country"]).astype(str).str.strip()
     df["cost_center"] = df["cost_center"].where(df["cost_center"].notna(), df["department"]).astype(str).str.strip()
 
-    # Day first (European: 01.03.2019 = 1 March); ISO dates (2019-03-01) are unaffected.
-    df["hire_date"] = pd.to_datetime(df["hire_date"], errors="coerce", dayfirst=True, format="mixed")
+    df["hire_date"] = _parse_dates(df["hire_date"])
 
     invalid = (
         df["base_salary"].isna() | (df["base_salary"] <= 0)
