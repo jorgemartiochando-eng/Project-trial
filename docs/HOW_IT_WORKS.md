@@ -74,7 +74,14 @@ You can see every question the page can ask, and try them, at
 | `app/pay_ranges.py` | Pay ranges and the Art. 7 letter | Change the letter's wording |
 | `tests/test_engine.py` | Automatic checks of the formulas | Run after every change |
 
-## 4. How to make a change yourself
+## 4. Starting the app the easy way
+
+Double-click **`start.bat`** in the project folder. It downloads the latest
+changes (`git pull`), sets up or repairs Python if needed (so moving the
+folder is fine), installs new libraries only when something changed, starts
+the app and opens the browser. Close the black window to stop the app.
+
+## 5. How to make a change yourself
 
 **Tools.** Install **Visual Studio Code** (free, from code.visualstudio.com).
 Choose File → Open Folder and select your `pay-transparency` folder. You get
@@ -123,7 +130,7 @@ lower case, with underscores instead of spaces:
 `app/art9.py`, inside `core()`, replace `vm` and `vf` in the `("b", ...)`
 and `("d", ...)` lines with `m` and `f`.
 
-## 5. Using your real data safely
+## 6. Using your real data safely
 
 **Where to put it:** `data/private/employees.xlsx`, plus optionally
 `data/private/job_evaluation.xlsx`. The app loads them automatically at

@@ -15,6 +15,10 @@ Directive (EU) 2023/970**. It turns an HR/payroll extract into:
 
 ## Quick start
 
+**Windows:** double-click `start.bat`. It updates, sets up Python on the first run, and opens the dashboard.
+
+**Manually:**
+
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
