@@ -24,6 +24,8 @@ EMPLOYEE_COLUMNS: dict[str, tuple[bool, str]] = {
     "legal_entity": (True, "Reporting unit, usually one per member state (e.g. 'DE GmbH')."),
     "country": (True, "ISO country code of the employment contract."),
     "department": (False, "Free text."),
+    "location": (False, "Site or office (e.g. 'Aarhus'). Defaults to country. Used as a filter."),
+    "cost_center": (False, "Cost center code or name. Defaults to department. Used as a filter."),
     "fte": (True, "Contracted working time as a fraction of full time (0 < fte <= 1)."),
     "full_time_weekly_hours": (True, "Full-time weekly hours for this contract (e.g. 40)."),
     "base_salary": (True, "Annual ordinary basic salary at 100% FTE, reporting currency."),
@@ -84,6 +86,12 @@ COLUMN_ALIASES: dict[str, str] = {
     "base_pay": "base_salary",
     "bonus": "variable_pay",
     "start_date": "hire_date",
+    "site": "location",
+    "office": "location",
+    "city": "location",
+    "cost_centre": "cost_center",
+    "costcenter": "cost_center",
+    "cost_center_code": "cost_center",
     "date_of_hire": "hire_date",
 }
 
@@ -109,7 +117,7 @@ def validate_employees(raw: pd.DataFrame) -> tuple[pd.DataFrame, ValidationResul
     for col in OPTIONAL_ZERO_COLS:
         if col not in df.columns:
             df[col] = 0.0
-    for col in ("department", "birth_year", "performance_rating"):
+    for col in ("department", "location", "cost_center", "birth_year", "performance_rating"):
         if col not in df.columns:
             df[col] = np.nan
 
@@ -143,6 +151,8 @@ def validate_employees(raw: pd.DataFrame) -> tuple[pd.DataFrame, ValidationResul
     for col in ("job_title", "job_family", "legal_entity", "country"):
         df[col] = df[col].astype(str).str.strip()
     df["department"] = df["department"].fillna("").astype(str)
+    df["location"] = df["location"].where(df["location"].notna(), df["country"]).astype(str).str.strip()
+    df["cost_center"] = df["cost_center"].where(df["cost_center"].notna(), df["department"]).astype(str).str.strip()
 
     df["hire_date"] = pd.to_datetime(df["hire_date"], errors="coerce")
 

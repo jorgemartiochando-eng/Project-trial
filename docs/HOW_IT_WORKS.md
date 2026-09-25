@@ -67,7 +67,7 @@ You can see every question the page can ask, and try them, at
 | `app/data_io.py` | Reads Excel/CSV and finds your private folder | Change where data is read from |
 | `app/store.py` | Keeps the loaded data in memory | Rarely |
 | `app/job_evaluation.py` | Scores roles and forms categories | Change how categories are built |
-| `app/art9.py` | Art. 9 indicators a) to g), with formulas | Change an Art. 9 definition |
+| `app/art9.py` | Art. 9 indicators a) to g), with formulas; `explore()` powers the indicator picker, filters and "Dive in" tables | Change an Art. 9 definition, or add a filter (edit `FILTERS`) |
 | `app/metrics.py` | Overview numbers, per-category gaps, Art. 10 status | Change the Art. 10 logic |
 | `app/adjusted.py` | Regression and "explain the gap" | Add or remove an explanatory factor |
 | `app/remediation.py` | Raise simulator | Change how raises are distributed |

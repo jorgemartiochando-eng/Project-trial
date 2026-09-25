@@ -173,3 +173,19 @@ def test_broken_local_file_falls_back_to_demo_with_visible_error(tmp_path, monke
     s.frame()
     assert "synthetic" in s.dataset.source
     assert any("Missing required columns" in e for e in s.dataset.validation.errors)
+
+
+def test_art9_explore_filters_and_breakdown():
+    c = TestClient(app)
+    c.post("/api/dataset/sample?n=400&seed=3")
+    full = c.get("/api/art9/explore?entity=DE GmbH").json()
+    fam = full["options"]["job_family"] if "job_family" in full["options"] else None
+    assert fam and "Engineering" in fam
+    eng = c.get("/api/art9/explore?entity=DE GmbH&job_family=Engineering&by=location").json()
+    assert 0 < eng["counts"]["total"] < full["counts"]["total"]
+    assert eng["counts"]["M"] + eng["counts"]["F"] + eng["counts"]["X"] == eng["counts"]["total"]
+    # breakdown groups add up to the filtered population (men)
+    assert sum(b["total"]["n_M"] for b in eng["breakdown"]) == eng["stats"]["total"]["n_M"]
+    # headline a) equals the mean-based stats
+    s = eng["stats"]["total"]
+    assert eng["indicators"]["a"]["gap_pct"] == pytest.approx((s["mean_M"] - s["mean_F"]) / s["mean_M"] * 100)

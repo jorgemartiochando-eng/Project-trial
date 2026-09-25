@@ -211,21 +211,117 @@ function renderOverview() {
 }
 
 // ------------------------------------------------------------------- art. 9
+state.art9 = { ind: "summary", comp: "total", period: "monthly", by: "job_level", filters: {}, data: null };
+
+const IND_SHORT = {
+  a: "Mean raw pay gap", b: "Mean variable pay gap", c: "Median raw pay gap", d: "Median variable pay gap",
+  e: "Share receiving variable pay", f: "Pay quartiles", g: "Gap by category of workers",
+};
+const COMP_LABEL = { total: "Total remuneration", basic: "Base pay", variable: "Variable pay" };
+const fmtPct = (v, d = 2) => (v === null || v === undefined ? "–" : `${v.toFixed(d)}%`);
+const gapPct = (m, f) => (m === null || f === null || m === undefined || f === undefined || !m ? null : ((m - f) / m) * 100);
+
+function periodFactor() {
+  return monthly() && state.art9.period === "annual" ? 12 : 1;
+}
+function periodLabel() {
+  if (!monthly()) return "hourly";
+  return state.art9.period === "annual" ? "annual (FTE)" : "monthly (FTE)";
+}
+const pmoney = (x) => (x === null || x === undefined ? "–" : money(x * periodFactor()));
+
 async function renderArt9() {
-  const groupBy = $("#art9-group").value;
-  const sep = entityParam() ? "&" : "?";
-  const r = await api(`/api/art9${entityParam()}${sep}group_by=${groupBy}`);
+  const a = state.art9;
+  const params = new URLSearchParams();
+  if (state.entity && state.entity !== "ALL") params.set("entity", state.entity);
+  for (const [k, v] of Object.entries(a.filters)) if (v) params.set(k, v);
+  params.set("by", a.by);
+  params.set("group_by", $("#art9-group").value);
+  a.data = await api(`/api/art9/explore?${params}`);
+  const r = a.data;
+
   const scope = state.entity === "ALL" ? "all legal entities combined (for official reporting, select one legal entity)" : state.entity;
   $("#art9-intro").textContent = `Scope: ${scope}. Pay amounts are ${unitLong()} in the reporting currency. ` +
     "Remuneration = basic pay + variable pay + allowances + benefits in kind. Variable pay (b, d) is compared among the workers who received it. " +
     "A positive gap means men are paid more.";
-  $("#export-art9").href = `/api/export/art9.csv${entityParam()}${sep}group_by=${groupBy}`;
+  const exp = new URLSearchParams();
+  if (state.entity && state.entity !== "ALL") exp.set("entity", state.entity);
+  exp.set("group_by", $("#art9-group").value);
+  $("#export-art9").href = `/api/export/art9.csv?${exp}`;
 
-  const g = (v) => (v === null || v === undefined ? "–" : `${v.toFixed(1)}%`);
+  renderArt9Filters(r);
+  $("#art9-counts").innerHTML =
+    `<span>Number of employees: <strong>${num(r.counts.total)}</strong></span>` +
+    `<span>Male employees: <strong>${num(r.counts.M)}</strong></span>` +
+    `<span>Female employees: <strong>${num(r.counts.F)}</strong></span>` +
+    (r.counts.X ? `<span class="muted">Other: ${num(r.counts.X)}</span>` : "");
+  renderIndicatorMenu(r);
+
+  const summary = a.ind === "summary";
+  $("#art9-summary").classList.toggle("hidden", !summary);
+  $("#art9-detail").classList.toggle("hidden", summary);
+  if (!r.indicators) {
+    (summary ? $("#art9-cards") : $("#art9-detail")).innerHTML = `<div class="card muted">No employees match these filters.</div>`;
+    return;
+  }
+  if (summary) renderArt9Summary(r.indicators);
+  else renderArt9Detail(r);
+}
+
+function renderArt9Filters(r) {
+  const a = state.art9;
+  const sel = (key) => `<label>${esc(r.filter_labels[key])}
+      <select data-filter="${key}" class="${a.filters[key] ? "set" : ""}">
+        <option value="">All</option>
+        ${r.options[key].map((o) => `<option value="${esc(o)}" ${String(a.filters[key]) === String(o) ? "selected" : ""}>${esc(o)}</option>`).join("")}
+      </select></label>`;
+  const any = Object.values(a.filters).some(Boolean);
+  $("#art9-filters").innerHTML = Object.keys(r.filter_labels).map(sel).join("") +
+    `<button class="secondary" id="art9-reset" ${any ? "" : "disabled"}>Clear filters</button>`;
+  $("#art9-filters").querySelectorAll("select").forEach((s) => s.addEventListener("change", () => {
+    a.filters[s.dataset.filter] = s.value;
+    renderArt9();
+  }));
+  $("#art9-reset").addEventListener("click", () => { a.filters = {}; renderArt9(); });
+}
+
+function indicatorPreview(ind, key) {
+  if (!ind) return "";
+  if ("abcd".includes(key)) return fmtPct(ind[key].gap_pct, 1);
+  if (key === "e") return `M ${fmtPct(ind.e.men_pct, 0)} · W ${fmtPct(ind.e.women_pct, 0)}`;
+  if (key === "f") return ind.f.length ? `Top quartile ${fmtPct(ind.f[3].women_pct, 0)} women` : "";
+  if (key === "g") return `${ind.g.length} groups`;
+  return "";
+}
+
+function renderIndicatorMenu(r) {
+  const a = state.art9;
+  const items = [`<button class="picker-item summary ${a.ind === "summary" ? "active" : ""}" data-ind="summary" role="menuitem">
+      <span></span><span>All indicators (summary)</span><span class="pv"></span></button>`]
+    .concat("abcdefg".split("").map((k) => `<button class="picker-item ${a.ind === k ? "active" : ""}" data-ind="${k}" role="menuitem">
+      <span class="ind-letter">${k}</span><span>${esc(IND_SHORT[k])}</span><span class="pv">${esc(indicatorPreview(r.indicators, k))}</span></button>`));
+  $("#ind-menu").innerHTML = items.join("");
+  $("#ind-current").textContent = a.ind === "summary" ? "All indicators (summary)" : `${a.ind}) ${IND_SHORT[a.ind]}`;
+  $("#ind-menu").querySelectorAll(".picker-item").forEach((b) => b.addEventListener("click", () => {
+    a.ind = b.dataset.ind;
+    toggleMenu(false);
+    renderArt9();
+  }));
+}
+
+function toggleMenu(open) {
+  const menu = $("#ind-menu");
+  const show = open ?? menu.classList.contains("hidden");
+  menu.classList.toggle("hidden", !show);
+  $("#ind-picker").setAttribute("aria-expanded", String(show));
+}
+
+function renderArt9Summary(r) {
+  const g = (v) => fmtPct(v, 1);
   const calc = (x, word) => x.men === null || x.women === null ? "Not enough data"
     : `(${money(x.men)} − ${money(x.women)}) / ${money(x.men)} × 100 = <strong>${g(x.gap_pct)}</strong><br>` +
       `${word} of men ${money(x.men)} (${num(x.n_men)} men) · women ${money(x.women)} (${num(x.n_women)} women)`;
-  const card = (k, body) => `<div class="card"><div class="ind-head"><span class="ind-letter">${k}</span><h3>${esc(r.titles[k])}</h3></div>
+  const card = (k, body) => `<div class="card clickable-card" data-ind="${k}" title="Open details"><div class="ind-head"><span class="ind-letter">${k}</span><h3>${esc(r.titles[k])}</h3></div>
     <p class="formula">${esc(r.formulas[k])}</p>${body}</div>`;
   const gapCard = (k, word) => card(k, `<div class="ind-value ${r[k].gap_pct > 0 ? "pos" : r[k].gap_pct < 0 ? "neg" : ""}">${g(r[k].gap_pct)}</div>
     <div class="calc">${calc(r[k], word)}</div>`);
@@ -236,22 +332,178 @@ async function renderArt9() {
       <div class="calc">Men: ${num(e.men_receiving)} / ${num(e.men_total)} × 100 = <strong>${g(e.men_pct)}</strong><br>
       Women: ${num(e.women_receiving)} / ${num(e.women_total)} × 100 = <strong>${g(e.women_pct)}</strong></div>`),
   ].join("");
-
+  $("#art9-cards").querySelectorAll(".clickable-card").forEach((c) => c.addEventListener("click", () => {
+    state.art9.ind = c.dataset.ind;
+    renderArt9();
+  }));
+  renderQuartileTable($("#art9-f"), r);
   $("#art9-f-title").textContent = r.titles.f;
   $("#art9-f-formula").textContent = r.formulas.f;
+  renderGroupTable($("#art9-g"), r);
+  $("#art9-g-title").textContent = r.titles.g;
+  $("#art9-g-formula").textContent = r.formulas.g;
+}
+
+function renderQuartileTable(el, r) {
+  const g = (v) => fmtPct(v, 1);
   const w = cssVar("--women"), m = cssVar("--men");
-  table($("#art9-f"), ["Quartile", { label: "Pay range", num: true }, { label: "Workers", num: true }, { label: "% women", num: true }, { label: "% men", num: true }, "Women / men"],
+  table(el, ["Quartile", { label: "Pay range", num: true }, { label: "Workers", num: true }, { label: "% women", num: true }, { label: "% men", num: true }, "Women / men"],
     r.f.map((q) => `<tr><td>Q${q.quartile} · ${esc(q.label)}</td><td class="num">${money(q.min_pay)} – ${money(q.max_pay)}</td><td class="num">${num(q.headcount)}</td>
       <td class="num">${g(q.women_pct)}</td><td class="num">${g(q.men_pct)}</td>
       <td><div class="minibar" title="Women ${g(q.women_pct)} · Men ${g(q.men_pct)}"><span style="width:${q.women_pct}%;background:${w}"></span><span style="width:${q.men_pct}%;background:${m}"></span></div></td></tr>`));
+}
 
-  $("#art9-g-title").textContent = r.titles.g;
-  $("#art9-g-formula").textContent = r.formulas.g;
+function renderGroupTable(el, r) {
+  const g = (v) => fmtPct(v, 1);
   const gc = (v) => `<td class="num ${v > 0 ? "pos" : v < 0 ? "neg" : ""}">${g(v)}</td>`;
-  table($("#art9-g"), ["Entity", groupBy === "job_level" ? "Job level" : "Category", { label: "Women", num: true }, { label: "Men", num: true },
+  table(el, ["Entity", r.group_by === "job_level" ? "Job level" : "Category", { label: "Women", num: true }, { label: "Men", num: true },
     { label: "a) Mean gap", num: true }, { label: "b) Mean variable gap", num: true }, { label: "c) Median gap", num: true }, { label: "d) Median variable gap", num: true }],
     r.g.map((x) => `<tr><td>${esc(x.legal_entity)}</td><td>${esc(x.group)}${x.small_group ? ' <span class="tag" title="Fewer than the minimum group size of one sex">small</span>' : ""}</td>
       <td class="num">${x.women}</td><td class="num">${x.men}</td>${gc(x.a_gap_pct)}${gc(x.b_gap_pct)}${gc(x.c_gap_pct)}${gc(x.d_gap_pct)}</tr>`));
+}
+
+// ---- detail views
+function renderArt9Detail(r) {
+  const k = state.art9.ind;
+  const ind = r.indicators;
+  const head = `<div class="card"><div class="ind-head"><span class="ind-letter">${k}</span><h3>${esc(ind.titles[k])}</h3></div>
+    <p class="formula">${esc(ind.formulas[k])}</p><div id="detail-body"></div></div>`;
+  const byOptions = Object.entries(r.breakdown_labels)
+    .map(([key, label]) => `<option value="${key}" ${state.art9.by === key ? "selected" : ""}>${esc(label)}</option>`).join("");
+  const dive = `<div class="card"><h3>Dive in</h3>
+    <div class="controls"><label>Break down by <select id="art9-by">${byOptions}</select></label></div>
+    <div class="table-scroll limit"><table class="data" id="art9-breakdown"></table></div></div>`;
+
+  if ("abcd".includes(k)) {
+    $("#art9-detail").innerHTML = head + dive;
+    renderGapDetail(r, k);
+  } else if (k === "e") {
+    $("#art9-detail").innerHTML = head + dive;
+    renderShareDetail(r);
+  } else if (k === "f") {
+    $("#art9-detail").innerHTML = head;
+    $("#detail-body").innerHTML = `<table class="data" id="detail-f"></table>`;
+    renderQuartileTable($("#detail-f"), ind);
+  } else {
+    $("#art9-detail").innerHTML = head;
+    $("#detail-body").innerHTML = `<div class="controls"><label>Group workers by <select id="detail-group">
+        <option value="category">Category of equal value (job evaluation)</option><option value="job_level">Job level</option></select></label></div>
+      <div class="table-scroll limit"><table class="data" id="detail-g"></table></div>`;
+    $("#detail-group").value = ind.group_by;
+    $("#detail-group").addEventListener("change", (e) => { $("#art9-group").value = e.target.value; renderArt9(); });
+    renderGroupTable($("#detail-g"), ind);
+  }
+  const bySel = $("#art9-by");
+  if (bySel) bySel.addEventListener("change", (e) => { state.art9.by = e.target.value; renderArt9(); });
+}
+
+function renderGapDetail(r, k) {
+  const a = state.art9;
+  const how = k === "a" || k === "b" ? "mean" : "median";
+  const Word = how === "mean" ? "Mean" : "Median";
+  const variable = k === "b" || k === "d";
+  const comp = variable ? "variable" : (a.comp === "variable" ? "total" : a.comp);
+  const s = r.stats[comp];
+  const M = s[`${how}_M`], F = s[`${how}_F`];
+  const pct = gapPct(M, F);
+  const diff = M !== null && F !== null ? M - F : null;
+  const compLabel = COMP_LABEL[comp];
+
+  const compSelect = variable ? `<span class="muted small">Among employees who received variable pay (${num(s.n_M)} men, ${num(s.n_F)} women)</span>`
+    : `<label>Pay component <select id="gap-comp">
+        <option value="total" ${comp === "total" ? "selected" : ""}>Total remuneration</option>
+        <option value="basic" ${comp === "basic" ? "selected" : ""}>Base pay</option></select></label>`;
+  const periodSelect = monthly() ? `<label>Show amounts as <select id="gap-period">
+        <option value="monthly" ${a.period === "monthly" ? "selected" : ""}>Monthly (FTE)</option>
+        <option value="annual" ${a.period === "annual" ? "selected" : ""}>Annual (FTE)</option></select></label>` : "";
+
+  $("#detail-body").innerHTML = `
+    <div class="controls">${compSelect}${periodSelect}</div>
+    <div class="grid2">
+      <div>
+        <table class="gap-table">
+          <caption>${Word} Raw Pay Gap</caption>
+          <thead><tr><th>Gender</th><th>${esc(compLabel)}</th><th>Pay Gap</th></tr></thead>
+          <tbody>
+            <tr><td>M</td><td>${pmoney(M)}</td><td>${M === null ? "–" : pmoney(0)}</td></tr>
+            <tr><td>F</td><td>${pmoney(F)}</td><td>${pmoney(diff)}</td></tr>
+          </tbody>
+          <tfoot><tr><td>Raw Pay Gap</td><td colspan="2" class="${pct > 0 ? "pos" : pct < 0 ? "neg" : ""}">${fmtPct(pct)}</td></tr></tfoot>
+        </table>
+        <div class="calc" style="margin-top:12px">${M === null || F === null ? "Not enough data" :
+          `(${pmoney(M)} − ${pmoney(F)}) / ${pmoney(M)} × 100 = <strong>${fmtPct(pct)}</strong><br>${Word} ${compLabel.toLowerCase()}, ${periodLabel()}, of ${num(s.n_M)} men and ${num(s.n_F)} women`}</div>
+      </div>
+      <div class="chart-box"><canvas id="chart-gap"></canvas></div>
+    </div>`;
+
+  const blue = cssVar("--accent"), red = "#e05a5a";
+  const f = periodFactor();
+  makeChart("gap", "chart-gap", {
+    type: "bar",
+    data: {
+      labels: ["M", "F"],
+      datasets: [
+        { label: compLabel, data: [M * f, F * f], backgroundColor: blue, borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 4, bottomRight: 4 }, borderSkipped: false, maxBarThickness: 90 },
+        { label: "Pay gap", data: [Math.max((F - M) * f, 0), Math.max((M - F) * f, 0)], backgroundColor: red, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: false, maxBarThickness: 90 },
+      ],
+    },
+    options: {
+      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { callback: (v) => num(v, monthly() ? 0 : 2) } } },
+      plugins: { tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${num(c.parsed.y, monthly() ? 0 : 2)}` } } },
+    },
+    plugins: [{
+      id: "barValues",  // amount printed inside each pay bar, as in the Excel report
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        ctx.save();
+        ctx.fillStyle = "#fff";
+        ctx.font = `600 14px ${Chart.defaults.font.family}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        chart.getDatasetMeta(0).data.forEach((bar, i) => {
+          const v = chart.data.datasets[0].data[i];
+          if (v && bar.height > 24) ctx.fillText(num(v, monthly() ? 0 : 2), bar.x, bar.y + bar.height / 2);
+        });
+        ctx.restore();
+      },
+    }],
+  });
+  const compSel = $("#gap-comp");
+  if (compSel) compSel.addEventListener("change", (e) => { a.comp = e.target.value; renderGapDetail(r, k); renderGapBreakdown(r, k, how, e.target.value); });
+  const perSel = $("#gap-period");
+  if (perSel) perSel.addEventListener("change", (e) => { a.period = e.target.value; renderGapDetail(r, k); renderGapBreakdown(r, k, how, comp); });
+  renderGapBreakdown(r, k, how, comp);
+}
+
+function renderGapBreakdown(r, k, how, comp) {
+  const Word = how === "mean" ? "Mean" : "Median";
+  const rows = r.breakdown.map((b) => {
+    const s = b[comp];
+    const M = s[`${how}_M`], F = s[`${how}_F`], p = gapPct(M, F);
+    const w = p === null ? 0 : Math.min(Math.abs(p), 50);
+    const bar = p === null ? "" : `<div class="gapbar"><span class="axis"></span><span style="${p >= 0 ? `left:50%;width:${w}%` : `right:50%;width:${w}%`};background:${p >= 0 ? "#e05a5a" : cssVar("--accent")}"></span></div>`;
+    return `<tr><td>${esc(b.key)}</td><td class="num">${num(s.n_M)}</td><td class="num">${num(s.n_F)}</td>
+      <td class="num">${pmoney(M)}</td><td class="num">${pmoney(F)}</td><td class="num">${M === null || F === null ? "–" : pmoney(M - F)}</td>
+      <td class="num ${p > 0 ? "pos" : p < 0 ? "neg" : ""}">${fmtPct(p)}</td><td>${bar}</td></tr>`;
+  });
+  table($("#art9-breakdown"), [r.breakdown_labels[r.by], { label: "Men", num: true }, { label: "Women", num: true },
+    { label: `${Word} M`, num: true }, { label: `${Word} F`, num: true }, { label: "Pay gap", num: true }, { label: "Raw gap", num: true }, "Gap (red: men paid more)"], rows);
+}
+
+function renderShareDetail(r) {
+  const e = r.indicators.e;
+  $("#detail-body").innerHTML = `<div class="ind-value split"><div>${fmtPct(e.men_pct, 1)}<small>of men receive variable pay (${num(e.men_receiving)} / ${num(e.men_total)})</small></div>
+    <div>${fmtPct(e.women_pct, 1)}<small>of women receive variable pay (${num(e.women_receiving)} / ${num(e.women_total)})</small></div></div>`;
+  const w = cssVar("--women"), m = cssVar("--men");
+  table($("#art9-breakdown"), [r.breakdown_labels[r.by], { label: "Men receiving", num: true }, { label: "% men", num: true },
+    { label: "Women receiving", num: true }, { label: "% women", num: true }, "Men / women"],
+    r.breakdown.map((b) => {
+      const x = b.receiving, pm = x.total_M ? (x.M / x.total_M) * 100 : null, pf = x.total_F ? (x.F / x.total_F) * 100 : null;
+      return `<tr><td>${esc(b.key)}</td><td class="num">${x.M} / ${x.total_M}</td><td class="num">${fmtPct(pm, 1)}</td>
+        <td class="num">${x.F} / ${x.total_F}</td><td class="num">${fmtPct(pf, 1)}</td>
+        <td><div class="minibar" style="flex-direction:column;height:auto;gap:2px">
+          <span style="height:6px;width:${pm ?? 0}%;background:${m}"></span><span style="height:6px;width:${pf ?? 0}%;background:${w}"></span></div></td></tr>`;
+    }));
 }
 
 // --------------------------------------------------------------- categories
@@ -528,7 +780,7 @@ function wire() {
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.id === `tab-${b.dataset.tab}`));
     await loadTab(b.dataset.tab);
   }));
-  $("#entity").addEventListener("change", async (e) => { state.entity = e.target.value; state.selectedCat = null; await refresh(); });
+  $("#entity").addEventListener("change", async (e) => { state.entity = e.target.value; state.selectedCat = null; state.art9.filters = {}; await refresh(); });
   $("#save-justification").addEventListener("click", saveJustification);
   $("#target").addEventListener("input", (e) => { $("#target-out").textContent = `${e.target.value}%`; });
   $("#target").addEventListener("change", runRemediation);
@@ -537,6 +789,9 @@ function wire() {
   $("#dl-adjustments").addEventListener("click", () => state.remediation && downloadCsv("pay_adjustments.csv", state.remediation.adjustments));
   $("#rti-go").addEventListener("click", runRti);
   $("#art9-group").addEventListener("change", renderArt9);
+  $("#ind-picker").addEventListener("click", (e) => { e.stopPropagation(); toggleMenu(); });
+  document.addEventListener("click", (e) => { if (!e.target.closest(".picker")) toggleMenu(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") toggleMenu(false); });
   $("#rti-id").addEventListener("keydown", (e) => e.key === "Enter" && runRti());
   $("#rti-copy").addEventListener("click", async () => { await navigator.clipboard.writeText($("#rti-letter").textContent); toast("Copied"); });
   $("#settings-form").addEventListener("submit", submitSettings);

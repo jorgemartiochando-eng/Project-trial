@@ -108,3 +108,63 @@ def indicators(df: pd.DataFrame, settings: Settings, group_by: str = "category")
         "f": quartiles,
         "g": groups,
     }
+
+
+# ---------------------------------------------------------------- drill-down
+FILTERS = {"location": "Location", "job_level": "Job level", "job_family": "Job function", "cost_center": "Cost center"}
+BREAKDOWNS = {**FILTERS, "legal_entity": "Legal entity", "category_label": "Category of equal value"}
+COMPONENTS = {"total": "pay_total", "basic": "pay_basic", "variable": "pay_variable"}
+
+
+def component_stats(df: pd.DataFrame) -> dict:
+    """Mean and median by sex for each pay component. Variable pay is measured
+    among the workers who received it, as in indicators b) and d)."""
+    out = {}
+    for comp, col in COMPONENTS.items():
+        pop = df[df["receives_variable"]] if comp == "variable" else df
+        m, f = pop[pop["sex"] == "M"][col], pop[pop["sex"] == "F"][col]
+        out[comp] = {
+            "n_M": len(m), "n_F": len(f),
+            "mean_M": _stat(m, "mean"), "mean_F": _stat(f, "mean"),
+            "median_M": _stat(m, "median"), "median_F": _stat(f, "median"),
+        }
+    m, f = df[df["sex"] == "M"], df[df["sex"] == "F"]
+    out["receiving"] = {
+        "M": int(m["receives_variable"].sum()), "F": int(f["receives_variable"].sum()),
+        "total_M": len(m), "total_F": len(f),
+    }
+    return out
+
+
+def _sort_key(v):
+    return (0, v) if isinstance(v, (int, float)) else (1, str(v))
+
+
+def explore(df: pd.DataFrame, settings: Settings, filters: dict[str, str], by: str = "job_level",
+            group_by: str = "category") -> dict:
+    """All Art. 9 indicators for a filtered population, plus a breakdown by one dimension."""
+    options = {k: sorted(df[k].dropna().unique().tolist(), key=_sort_key) for k in FILTERS}
+    sub = df
+    for key, value in filters.items():
+        if key in FILTERS and value not in (None, "", "ALL"):
+            sub = sub[sub[key].astype(str) == str(value)]
+    if by not in BREAKDOWNS:
+        by = "job_level"
+    breakdown = []
+    if len(sub):
+        for key, grp in sorted(sub.groupby(by), key=lambda kv: _sort_key(kv[0])):
+            breakdown.append({"key": _clean(key), **component_stats(grp)})
+    return {
+        "filters": {k: v for k, v in filters.items() if k in FILTERS and v not in (None, "", "ALL")},
+        "options": options,
+        "filter_labels": FILTERS,
+        "breakdown_labels": BREAKDOWNS,
+        "by": by,
+        "counts": {
+            "total": len(sub), "M": int((sub["sex"] == "M").sum()),
+            "F": int((sub["sex"] == "F").sum()), "X": int((sub["sex"] == "X").sum()),
+        },
+        "stats": component_stats(sub),
+        "indicators": indicators(sub, settings, group_by) if len(sub) else None,
+        "breakdown": breakdown,
+    }

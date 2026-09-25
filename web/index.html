@@ -78,27 +78,44 @@
     <div class="card">
       <h3>Pay gap metrics <span class="tag">Directive (EU) 2023/970, Art. 9(1)</span></h3>
       <p class="muted small" id="art9-intro"></p>
-      <p><a id="export-art9" class="button secondary" href="#">Download all indicators (CSV)</a></p>
-    </div>
-    <div class="ind-grid" id="art9-cards"></div>
-    <div class="card">
-      <div class="ind-head"><span class="ind-letter">f</span><h3 id="art9-f-title"></h3></div>
-      <p class="formula" id="art9-f-formula"></p>
-      <table class="data" id="art9-f"></table>
-    </div>
-    <div class="card">
-      <div class="ind-head"><span class="ind-letter">g</span><h3 id="art9-g-title"></h3></div>
-      <p class="formula" id="art9-g-formula"></p>
-      <div class="controls">
-        <label>Group workers by
-          <select id="art9-group">
-            <option value="category">Category of equal value (job evaluation)</option>
-            <option value="job_level">Job level</option>
-          </select>
-        </label>
+      <div class="art9-toolbar">
+        <div class="picker">
+          <button id="ind-picker" class="picker-btn" aria-haspopup="true" aria-expanded="false">
+            <span class="picker-label">Indicator</span>
+            <span id="ind-current">All indicators (summary)</span>
+            <span class="caret">▾</span>
+          </button>
+          <div id="ind-menu" class="picker-menu hidden" role="menu"></div>
+        </div>
+        <a id="export-art9" class="button secondary" href="#">Download all indicators (CSV)</a>
       </div>
-      <div class="table-scroll limit"><table class="data" id="art9-g"></table></div>
+      <div class="filterbar" id="art9-filters"></div>
+      <div class="counts" id="art9-counts"></div>
     </div>
+
+    <div id="art9-summary">
+      <div class="ind-grid" id="art9-cards"></div>
+      <div class="card">
+        <div class="ind-head"><span class="ind-letter">f</span><h3 id="art9-f-title"></h3></div>
+        <p class="formula" id="art9-f-formula"></p>
+        <table class="data" id="art9-f"></table>
+      </div>
+      <div class="card">
+        <div class="ind-head"><span class="ind-letter">g</span><h3 id="art9-g-title"></h3></div>
+        <p class="formula" id="art9-g-formula"></p>
+        <div class="controls">
+          <label>Group workers by
+            <select id="art9-group">
+              <option value="category">Category of equal value (job evaluation)</option>
+              <option value="job_level">Job level</option>
+            </select>
+          </label>
+        </div>
+        <div class="table-scroll limit"><table class="data" id="art9-g"></table></div>
+      </div>
+    </div>
+
+    <div id="art9-detail" class="hidden"></div>
   </section>
 
   <!-- CATEGORIES -->

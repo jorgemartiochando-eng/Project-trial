@@ -26,6 +26,16 @@ FAMILIES = {
                 "HR Director", "Chief People Officer"], 33000, 0.75, 0.08),
 }
 
+SITES = {
+    "DE GmbH": ["Munich", "Bremen"],
+    "FR SAS": ["Paris", "Toulouse"],
+    "ES SL": ["Madrid"],
+    "NL BV": ["Rotterdam", "Hengelo"],
+    "IE Ltd": ["Dublin"],
+}
+COST_CENTER_CODES = {"Engineering": 410, "Sales": 520, "Operations": 630, "Customer Support": 740,
+                     "Finance": 850, "People": 860}
+
 ENTITIES = {
     # entity: (country, pay multiplier, full-time weekly hours, weight)
     "DE GmbH": ("DE", 1.10, 40, 0.30),
@@ -124,6 +134,8 @@ def generate(n: int = 900, seed: int = 7, reference_year: int = 2026) -> pd.Data
             "legal_entity": entity,
             "country": country,
             "department": fam,
+            "location": str(rng.choice(SITES[entity])),
+            "cost_center": f"CC{COST_CENTER_CODES[fam]}-{country}",
             "fte": fte,
             "full_time_weekly_hours": ft_hours,
             "base_salary": round(base, 0),

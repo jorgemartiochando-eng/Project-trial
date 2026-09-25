@@ -169,6 +169,18 @@ def art9_indicators(entity: str | None = Entity,
     return art9.indicators(df, store.settings, group_by)
 
 
+@app.get("/api/art9/explore")
+def art9_explore(entity: str | None = Entity,
+                 location: str | None = None, job_level: str | None = None,
+                 job_family: str | None = None, cost_center: str | None = None,
+                 by: str = "job_level",
+                 group_by: str = Query("category", pattern="^(category|job_level)$")):
+    """Drill-down: Art. 9 indicators for a filtered population plus a breakdown."""
+    df, _ = _df(entity)
+    filters = {"location": location, "job_level": job_level, "job_family": job_family, "cost_center": cost_center}
+    return art9.explore(df, store.settings, filters, by, group_by)
+
+
 @app.get("/api/export/art9.csv")
 def export_art9(entity: str | None = Entity,
                 group_by: str = Query("category", pattern="^(category|job_level)$")):
