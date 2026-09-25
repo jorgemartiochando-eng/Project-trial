@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pay Transparency Engine</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/vendor/chart.umd.min.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <strong>Pay Transparency Engine</strong>
+    <span class="muted">Directive (EU) 2023/970</span>
+  </div>
+  <div class="filters">
+    <label>Legal entity
+      <select id="entity"></select>
+    </label>
+    <span id="source" class="muted small"></span>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button data-tab="overview" class="active">Overview</button>
+  <button data-tab="categories">Categories &amp; Art. 10</button>
+  <button data-tab="explain">Explain the gap</button>
+  <button data-tab="remediation">Remediation</button>
+  <button data-tab="ranges">Pay ranges (Art. 5)</button>
+  <button data-tab="rti">Employee request (Art. 7)</button>
+  <button data-tab="data">Data &amp; settings</button>
+</nav>
+
+<main>
+  <!-- OVERVIEW -->
+  <section id="tab-overview" class="tab active">
+    <div id="method-note" class="callout hidden"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="grid2">
+      <div class="card">
+        <h3>Pay quartile bands <span class="tag">Art. 9(1)(f)</span></h3>
+        <p class="muted small">Share of women and men in each quarter of the workforce ranked by gross hourly pay.</p>
+        <div class="chart-box"><canvas id="chart-quartiles"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Mean pay gap by legal entity</h3>
+        <p class="muted small">Gaps are reported per employer. Dashed line = 5% threshold.</p>
+        <div class="chart-box"><canvas id="chart-entities"></canvas></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>Complementary &amp; variable pay <span class="tag">Art. 9(1)(b)(d)(e)</span></h3>
+        <table class="data" id="comp-table"></table>
+      </div>
+      <div class="card">
+        <h3>Reporting obligations <span class="tag">Art. 9(2)-(4)</span></h3>
+        <table class="data" id="obligations"></table>
+        <p class="muted small">Based on headcount in the loaded data. Check the national transposition law for each member state.</p>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Gap by job family and level</h3>
+      <div class="grid2">
+        <table class="data" id="by-family"></table>
+        <table class="data" id="by-level"></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- CATEGORIES -->
+  <section id="tab-categories" class="tab">
+    <div class="card">
+      <h3>Gap per category of workers <span class="tag">Art. 9(1)(g) · Art. 10</span></h3>
+      <p class="muted small">A mean gap of <span id="thr-label">5%</span> or more that is not justified by objective, gender-neutral
+        criteria (and not remedied within 6 months) triggers a <strong>joint pay assessment</strong> with worker representatives.
+        Categories are assessed within each legal entity, because the obligations apply per employer. Record justifications here; click a row to inspect it.</p>
+      <div class="table-scroll"><table class="data clickable" id="cat-table"></table></div>
+      <p><a id="export-cats" class="button secondary" href="#">Download CSV</a></p>
+    </div>
+    <div class="card hidden" id="cat-detail">
+      <h3 id="cat-detail-title"></h3>
+      <div class="grid2">
+        <div>
+          <p class="muted small">Each dot is one employee's gross hourly pay. Hover for details.</p>
+          <div class="chart-box tall"><canvas id="chart-cat-strip"></canvas></div>
+        </div>
+        <div>
+          <h4>Roles in this category</h4>
+          <table class="data" id="cat-roles"></table>
+          <h4>Objective justification</h4>
+          <textarea id="justification" rows="4" placeholder="e.g. Difference explained by the documented shift premium for night work, applied equally to all workers on night rotas."></textarea>
+          <button id="save-justification">Save justification</button>
+          <span id="just-saved" class="muted small"></span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Individuals paid well below the other sex's category median</h3>
+      <p class="muted small">Hourly pay below 90% of the other sex's median in the same category and legal entity — review these first.</p>
+      <div class="table-scroll limit"><table class="data" id="outliers"></table></div>
+    </div>
+  </section>
+
+  <!-- EXPLAIN -->
+  <section id="tab-explain" class="tab">
+    <div class="tiles" id="adj-tiles"></div>
+    <div class="grid2">
+      <div class="card">
+        <h3>What explains the raw gap? <span class="tag">Oaxaca-Blinder</span></h3>
+        <p class="muted small">Contribution of each factor to the raw gap (log points × 100 ≈ %). Positive = pushes men's pay above women's.</p>
+        <div class="chart-box"><canvas id="chart-decomp"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>How to read this</h3>
+        <ul class="reading">
+          <li><strong>Raw gap</strong> is what you report. <strong>Adjusted gap</strong> is the difference left after comparing
+            women and men with the same category, family, entity, tenure, working time, performance and age.</li>
+          <li>An adjusted gap that is statistically significant is evidence of unequal pay for equal work and should be
+            addressed before the joint pay assessment.</li>
+          <li><strong>Caution:</strong> "explained" is not "justified". If women are under-represented in senior categories,
+            that segregation is itself something Art. 10(2)(c) asks you to analyse.</li>
+          <li>Never control for factors that are themselves gender-biased (e.g. negotiated starting salary, salary history — which
+            Art. 5(2) forbids asking about).</li>
+        </ul>
+        <table class="data" id="adj-meta"></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- REMEDIATION -->
+  <section id="tab-remediation" class="tab">
+    <div class="card">
+      <h3>Close unjustified category gaps</h3>
+      <p class="muted small">For each category above the target gap (and without a justification), the lowest-paid women are raised first
+        to a common floor until the category's mean gap reaches the target. Increases are applied to basic salary.</p>
+      <div class="controls">
+        <label>Target gap <input type="range" id="target" min="0" max="5" step="0.1" value="4.9"> <output id="target-out">4.9%</output></label>
+        <label class="check"><input type="checkbox" id="incl-justified"> Include justified categories</label>
+        <button id="run-rem">Run simulation</button>
+      </div>
+      <div class="tiles" id="rem-tiles"></div>
+      <div class="table-scroll"><table class="data" id="rem-cats"></table></div>
+    </div>
+    <div class="card">
+      <h3>Proposed individual adjustments</h3>
+      <p><button class="secondary" id="dl-adjustments">Download CSV</button></p>
+      <div class="table-scroll limit"><table class="data" id="rem-adj"></table></div>
+    </div>
+  </section>
+
+  <!-- RANGES -->
+  <section id="tab-ranges" class="tab">
+    <div class="card">
+      <h3>Pay ranges per category <span class="tag">Art. 5 · Art. 6</span></h3>
+      <p class="muted small">Applicants must be told the initial pay or its range before interview, and you may not ask about pay history.
+        Suggested advertised range = 25th–75th percentile of current FTE base salary in the category (rounded). Bars show P10–P90
+        with the suggested range highlighted and the median marked.</p>
+      <div class="table-scroll"><table class="data" id="ranges"></table></div>
+    </div>
+  </section>
+
+  <!-- RTI -->
+  <section id="tab-rti" class="tab">
+    <div class="card">
+      <h3>Right to information <span class="tag">Art. 7</span></h3>
+      <p class="muted small">Any worker may request their pay level and the average pay levels by sex for workers doing the same work
+        or work of equal value. You must reply within two months.</p>
+      <div class="controls">
+        <label>Employee ID <input id="rti-id" list="rti-ids" placeholder="E00010"></label>
+        <datalist id="rti-ids"></datalist>
+        <button id="rti-go">Generate response</button>
+      </div>
+      <div id="rti-out" class="hidden">
+        <div id="rti-warn"></div>
+        <div class="tiles" id="rti-tiles"></div>
+        <h4>Draft response</h4>
+        <pre id="rti-letter" class="letter"></pre>
+        <button class="secondary" id="rti-copy">Copy text</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA -->
+  <section id="tab-data" class="tab">
+    <div class="grid2">
+      <div class="card">
+        <h3>Load your data</h3>
+        <p class="muted small">CSV (comma or semicolon). Amounts in one reporting currency. Data stays in this server's memory only.</p>
+        <form id="upload-form">
+          <label>Employees file (required) <input type="file" name="employees" accept=".csv,text/csv" required></label>
+          <label>Job evaluation file (recommended) <input type="file" name="job_evaluation" accept=".csv,text/csv"></label>
+          <button type="submit">Upload &amp; analyse</button>
+        </form>
+        <p class="small">Templates: <a href="/api/templates/employees.csv" download="employees.csv">employees.csv</a> ·
+          <a href="/api/templates/job_evaluation.csv" download="job_evaluation.csv">job_evaluation.csv</a></p>
+        <hr>
+        <div class="controls">
+          <label>Demo employees <input type="number" id="sample-n" value="900" min="50" max="20000" step="50"></label>
+          <label>Seed <input type="number" id="sample-seed" value="7"></label>
+          <button class="secondary" id="load-sample">Load synthetic data</button>
+        </div>
+        <div id="validation"></div>
+      </div>
+      <div class="card">
+        <h3>Methodology settings</h3>
+        <p class="muted small">Job evaluation factor weights (Art. 4(4)). Changing them re-groups roles into categories — document every change.</p>
+        <form id="settings-form" class="settings">
+          <label>Skills <input type="number" step="0.05" min="0" name="skills"></label>
+          <label>Effort <input type="number" step="0.05" min="0" name="effort"></label>
+          <label>Responsibility <input type="number" step="0.05" min="0" name="responsibility"></label>
+          <label>Working conditions <input type="number" step="0.05" min="0" name="working_conditions"></label>
+          <label>Category band width (points) <input type="number" step="1" min="1" max="50" name="band_width"></label>
+          <label>Gap threshold (%) <input type="number" step="0.5" min="0.5" max="50" name="gap_threshold"></label>
+          <label>Minimum group size <input type="number" step="1" min="1" max="50" name="min_group_size"></label>
+          <label>Reference date <input type="date" name="reference_date"></label>
+          <button type="submit">Apply settings</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Roles grouped as work of equal value</h3>
+      <div class="table-scroll"><table class="data" id="roles-map"></table></div>
+    </div>
+    <div class="card">
+      <h3>Employee data dictionary</h3>
+      <table class="data" id="schema"></table>
+    </div>
+  </section>
+</main>
+
+<div id="tooltip-toast" class="toast hidden"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
