@@ -61,7 +61,8 @@ function downloadCsv(filename, rows) {
 
 // -------------------------------------------------------------- chart setup
 function chartDefaults() {
-  Chart.defaults.font.family = '"Helvetica Neue", Helvetica, Arial, system-ui, sans-serif';
+  Chart.defaults.font.family = 'Calibri, Carlito, "Segoe UI", Arial, sans-serif';
+  Chart.defaults.font.size = 13;
   Chart.defaults.color = cssVar("--ink-2");
   Chart.defaults.borderColor = cssVar("--grid");
   Chart.defaults.plugins.legend.labels.boxWidth = 10;
@@ -531,6 +532,8 @@ function wire() {
 }
 
 (async function init() {
+  // Charts are drawn on canvas, so wait for the web font before the first render.
+  try { await document.fonts.ready; } catch (_) { /* older browsers */ }
   chartDefaults();
   wire();
   await loadDataset();

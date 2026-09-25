@@ -1,3 +1,8 @@
+/* Calibri (as in the company's Office documents). Carlito is a free, metric-compatible
+   stand-in, bundled for computers without Calibri (e.g. Mac, Linux). */
+@font-face { font-family: "Carlito"; font-weight: 400; font-display: swap; src: url("/static/vendor/fonts/carlito-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Carlito"; font-weight: 700; font-display: swap; src: url("/static/vendor/fonts/carlito-latin-700-normal.woff2") format("woff2"); }
+
 :root {
   color-scheme: light;
   /* Brand palette: deep navy -> bright cyan, as in the concentric-circle artwork */
@@ -56,7 +61,7 @@
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--page); color: var(--ink);
-  font: 14px/1.45 "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  font: 15px/1.45 Calibri, Carlito, "Segoe UI", Arial, sans-serif;
 }
 .hero {
   position: relative; overflow: hidden; color: #fff;
@@ -70,13 +75,13 @@ body {
   position: relative; max-width: 1280px; margin: 0 auto; padding: 44px 16px 36px;
 }
 .hero-text { max-width: 640px; }
-.eyebrow { margin: 0 0 8px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; }
+.eyebrow { margin: 0 0 8px; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; }
 .hero h1 {
   margin: 0; font-weight: 300; letter-spacing: -0.01em; line-height: 1.05;
   font-size: clamp(34px, 5.5vw, 60px);
-  font-family: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  font-family: "Calibri Light", Calibri, Carlito, "Segoe UI", Arial, sans-serif;
 }
-.hero-sub { margin: 12px 0 0; font-size: 15px; opacity: 0.85; max-width: 520px; }
+.hero-sub { margin: 12px 0 0; font-size: 17px; opacity: 0.85; max-width: 520px; }
 .hero .filters { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-top: 22px; }
 .hero .filters label { color: rgba(255, 255, 255, 0.85); }
 .hero .filters select {
@@ -106,18 +111,18 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px; }
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
   padding: 16px; margin-bottom: 16px; min-width: 0;
 }
-.card h3 { margin: 0 0 6px; font-size: 15px; }
-.card h4 { margin: 14px 0 6px; font-size: 13px; }
+.card h3 { margin: 0 0 6px; font-size: 18px; font-weight: 400; }
+.card h4 { margin: 14px 0 6px; font-size: 15px; font-weight: 700; }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; }
 .grid2 > .card { margin-bottom: 0; }
 .grid2 + .card, .grid2 + .grid2 { margin-top: 16px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
 .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
-.tile .label { color: var(--ink-2); font-size: 12px; }
-.tile .value { font-size: 26px; font-weight: 600; margin-top: 2px; }
-.tile .sub { color: var(--muted); font-size: 12px; }
+.tile .label { color: var(--ink-2); font-size: 14px; }
+.tile .value { font-size: 30px; font-weight: 700; margin-top: 2px; }
+.tile .sub { color: var(--muted); font-size: 13px; }
 .muted { color: var(--ink-2); }
-.small { font-size: 12px; }
+.small { font-size: 13px; }
 .tag {
   display: inline-block; font-size: 11px; font-weight: 500; color: var(--ink-2); border: 1px solid var(--border);
   border-radius: 999px; padding: 0 8px; margin-left: 6px; vertical-align: middle;
@@ -131,7 +136,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px; }
 }
 .table-scroll { overflow-x: auto; }
 .table-scroll.limit { max-height: 420px; overflow-y: auto; }
-table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.data { width: 100%; border-collapse: collapse; font-size: 14px; }
 table.data th, table.data td { padding: 6px 8px; border-bottom: 1px solid var(--grid); text-align: left; vertical-align: middle; }
 table.data th { color: var(--ink-2); font-weight: 500; position: sticky; top: 0; background: var(--surface); }
 table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -139,7 +144,7 @@ table.clickable tbody tr { cursor: pointer; }
 table.clickable tbody tr:hover, table.clickable tbody tr.selected { background: var(--track); }
 .pos { color: var(--critical-text); }
 .neg { color: var(--good-text); }
-.status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12px; }
+.status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 13px; }
 .status .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .status.ok .dot { background: var(--good); }
 .status.justified .dot { background: var(--warning); }
@@ -163,7 +168,7 @@ form label { display: flex; margin-bottom: 10px; }
 .settings button { grid-column: 1 / -1; justify-self: start; }
 .letter {
   white-space: pre-wrap; background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 14px;
-  font: 13px/1.55 system-ui, sans-serif;
+  font: 15px/1.55 Calibri, Carlito, "Segoe UI", Arial, sans-serif;
 }
 .reading li { margin-bottom: 8px; }
 .msg { padding: 8px 12px; border-radius: 6px; margin-top: 8px; font-size: 13px; border: 1px solid var(--border); }
@@ -193,10 +198,10 @@ hr { border: none; border-top: 1px solid var(--grid); margin: 16px 0; }
 .ind-value { font-size: 34px; font-weight: 600; margin: 6px 0 2px; }
 .ind-value.split { display: flex; gap: 28px; flex-wrap: wrap; }
 .ind-value.split small { display: block; font-size: 12px; font-weight: 400; color: var(--ink-2); }
-.formula { font-style: italic; color: var(--ink-2); font-size: 13px; margin: 4px 0 8px; }
+.formula { font-style: italic; color: var(--ink-2); font-size: 14px; margin: 4px 0 8px; }
 .calc {
   margin-top: auto; padding: 8px 10px; border-radius: 6px; background: var(--track);
-  font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--ink);
+  font-size: 14px; font-variant-numeric: tabular-nums; color: var(--ink);
 }
 .minibar { display: flex; height: 12px; min-width: 160px; border-radius: 4px; overflow: hidden; gap: 2px; }
 .minibar span { display: block; height: 100%; }
