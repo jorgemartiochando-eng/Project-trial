@@ -46,6 +46,8 @@ tests/               unit + API tests
 docs/GUIDE.md        how to take this from MVP to a product
 ```
 
+**New to the code?** Read [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md): how the pieces fit together, how to change things yourself, and how to use your real data safely (it stays in `data/private/` on your laptop).
+
 **Read [`docs/GUIDE.md`](docs/GUIDE.md)** next. It covers the data you need to
 collect, the methodology decisions you have to make, and a phased roadmap to production.
 

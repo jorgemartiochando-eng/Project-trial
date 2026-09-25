@@ -63,9 +63,35 @@ class ValidationResult:
         return {"ok": self.ok, "errors": self.errors, "warnings": self.warnings}
 
 
+# Your HR system's column names -> the names this app expects.
+# Add a line here if your export uses a different header (matching ignores
+# upper/lower case and treats spaces like underscores).
+COLUMN_ALIASES: dict[str, str] = {
+    "id": "employee_id",
+    "employee_number": "employee_id",
+    "personnel_number": "employee_id",
+    "gender": "sex",
+    "position": "job_title",
+    "title": "job_title",
+    "job_function": "job_family",
+    "grade": "job_level",
+    "level": "job_level",
+    "company": "legal_entity",
+    "entity": "legal_entity",
+    "fte_%": "fte",
+    "weekly_hours": "full_time_weekly_hours",
+    "annual_base_salary": "base_salary",
+    "base_pay": "base_salary",
+    "bonus": "variable_pay",
+    "start_date": "hire_date",
+    "date_of_hire": "hire_date",
+}
+
+
 def _normalise_headers(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    df.columns = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
+    cols = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
+    df.columns = [COLUMN_ALIASES.get(c, c) for c in cols]
     return df
 
 
@@ -110,6 +136,9 @@ def validate_employees(raw: pd.DataFrame) -> tuple[pd.DataFrame, ValidationResul
         df[col] = pd.to_numeric(df[col], errors="coerce")
     for col in OPTIONAL_ZERO_COLS:
         df[col] = df[col].fillna(0.0)
+    if df["fte"].max() > 1.5:  # FTE given as a percentage (e.g. 80) rather than a fraction
+        df["fte"] = df["fte"] / 100
+        res.warnings.append("fte looked like a percentage (values above 1), so it was divided by 100.")
 
     for col in ("job_title", "job_family", "legal_entity", "country"):
         df[col] = df[col].astype(str).str.strip()

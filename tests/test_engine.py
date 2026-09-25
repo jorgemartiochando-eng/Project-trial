@@ -150,3 +150,26 @@ def test_monthly_and_hourly_gaps_agree_within_one_employer():
     h = headline_indicators(prepare_employees(df_raw, pay_basis="hourly"))
     assert m["mean_gap"] == pytest.approx(h["mean_gap"])
     assert m["median_gap"] == pytest.approx(h["median_gap"])
+
+
+def test_local_private_folder_is_loaded_at_startup(tmp_path, monkeypatch):
+    from app import data_io, store as store_mod
+
+    synthetic.generate(n=60, seed=4).to_excel(tmp_path / "employees.xlsx", index=False)
+    monkeypatch.setattr(data_io, "PRIVATE_DIR", tmp_path)
+    monkeypatch.setattr(store_mod, "find_file", lambda stem: data_io.find_file(stem, tmp_path))
+    s = store_mod.Store()
+    df, _ = s.frame()
+    assert len(df) == 60
+    assert s.dataset.source.startswith("local file")
+
+
+def test_broken_local_file_falls_back_to_demo_with_visible_error(tmp_path, monkeypatch):
+    from app import data_io, store as store_mod
+
+    (tmp_path / "employees.csv").write_text("employee_id,sex\n1,F\n")
+    monkeypatch.setattr(store_mod, "find_file", lambda stem: data_io.find_file(stem, tmp_path))
+    s = store_mod.Store()
+    s.frame()
+    assert "synthetic" in s.dataset.source
+    assert any("Missing required columns" in e for e in s.dataset.validation.errors)

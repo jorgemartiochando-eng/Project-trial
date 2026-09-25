@@ -3,3 +3,4 @@ uvicorn[standard]>=0.29
 pandas>=2.1
 numpy>=1.26
 python-multipart>=0.0.9
+openpyxl>=3.1

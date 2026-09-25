@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from . import adjusted, art9, metrics, remediation
 from .config import Settings
+from .data_io import PRIVATE_DIR, read_table
 from .job_evaluation import roles_by_category
 from .metrics import _clean, assessment_key
 from .pay_ranges import pay_ranges, right_to_information
@@ -58,6 +59,7 @@ def dataset_info():
         "categories": int(df["category_id"].nunique()),
         "category_method": meta,
         "validation": ds.validation.to_dict(),
+        "private_dir": str(PRIVATE_DIR),
     }
 
 
@@ -67,18 +69,29 @@ def load_sample(n: int = Query(900, ge=50, le=20000), seed: int = 7):
     return {"validation": res.to_dict(), **dataset_info()}
 
 
-async def _read_csv(f: UploadFile) -> pd.DataFrame:
+async def _read_upload(f: UploadFile) -> pd.DataFrame:
     content = await f.read()
     try:
-        return pd.read_csv(io.BytesIO(content), sep=None, engine="python")
+        return read_table(content, f.filename or "upload.csv")
     except Exception as exc:  # noqa: BLE001 - surface parser errors to the user
         raise HTTPException(400, f"Could not parse {f.filename}: {exc}") from exc
 
 
+@app.post("/api/dataset/reload-local")
+def reload_local():
+    """Re-read the files in the private data folder (after you edit them)."""
+    res = store.load_local()
+    if res is None:
+        raise HTTPException(404, f"No employees.xlsx or employees.csv found in {PRIVATE_DIR}")
+    if not res.ok:
+        raise HTTPException(422, res.to_dict())
+    return {"validation": res.to_dict(), **dataset_info()}
+
+
 @app.post("/api/dataset/upload")
 async def upload(employees: UploadFile = File(...), job_evaluation: UploadFile | None = File(None)):
-    emp = await _read_csv(employees)
-    je = await _read_csv(job_evaluation) if job_evaluation is not None and job_evaluation.filename else None
+    emp = await _read_upload(employees)
+    je = await _read_upload(job_evaluation) if job_evaluation is not None and job_evaluation.filename else None
     res = store.load(emp, je, f"upload: {employees.filename}")
     if not res.ok:
         raise HTTPException(422, res.to_dict())

@@ -96,6 +96,7 @@ const thresholdLine = (value) => ({
 async function loadDataset() {
   const ds = await api("/api/dataset");
   $("#source").textContent = `${ds.employees} employees · ${ds.source}`;
+  $("#private-dir").textContent = ds.private_dir;
   const sel = $("#entity");
   const current = state.entity;
   sel.innerHTML = `<option value="ALL">All entities (group)</option>` +
@@ -497,6 +498,19 @@ async function upload(ev) {
   }
 }
 
+async function reloadLocal() {
+  try {
+    const r = await api("/api/dataset/reload-local", { method: "POST" });
+    toast(`Loaded ${r.employees} employees from your local files`);
+    state.selectedCat = null;
+    $("#rti-ids").innerHTML = "";
+    await loadDataset();
+    await refresh();
+  } catch (e) {
+    renderValidation(e.detail && e.detail.errors ? e.detail : { errors: [e.message], warnings: [] });
+  }
+}
+
 async function loadSample() {
   const n = $("#sample-n").value, seed = $("#sample-seed").value;
   await api(`/api/dataset/sample?n=${n}&seed=${seed}`, { method: "POST" });
@@ -528,6 +542,7 @@ function wire() {
   $("#settings-form").addEventListener("submit", submitSettings);
   $("#upload-form").addEventListener("submit", upload);
   $("#load-sample").addEventListener("click", loadSample);
+  $("#reload-local").addEventListener("click", reloadLocal);
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { chartDefaults(); refresh(); });
 }
 

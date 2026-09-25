@@ -218,11 +218,17 @@
   <section id="tab-data" class="tab">
     <div class="grid2">
       <div class="card">
-        <h3>Load your data</h3>
-        <p class="muted small">CSV (comma or semicolon). Amounts in one reporting currency. Data stays in this server's memory only.</p>
+        <h3>Your data, kept on this computer</h3>
+        <p class="small">Put <code>employees.xlsx</code> (or <code>.csv</code>) and optionally <code>job_evaluation.xlsx</code> in this folder.
+          They load automatically every time the app starts, and nothing is sent anywhere:</p>
+        <p class="small"><code id="private-dir"></code></p>
+        <p><button class="secondary" id="reload-local">Reload my local files</button></p>
+        <hr>
+        <h3>Or upload a file for this session</h3>
+        <p class="muted small">Excel or CSV. Amounts in one reporting currency. Uploaded data is kept in memory until the app is stopped.</p>
         <form id="upload-form">
-          <label>Employees file (required) <input type="file" name="employees" accept=".csv,text/csv" required></label>
-          <label>Job evaluation file (recommended) <input type="file" name="job_evaluation" accept=".csv,text/csv"></label>
+          <label>Employees file (required) <input type="file" name="employees" accept=".csv,.xlsx,.xls" required></label>
+          <label>Job evaluation file (recommended) <input type="file" name="job_evaluation" accept=".csv,.xlsx,.xls"></label>
           <button type="submit">Upload &amp; analyse</button>
         </form>
         <p class="small">Templates: <a href="/api/templates/employees.csv" download="employees.csv">employees.csv</a> ·

@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from . import synthetic
+from .data_io import PRIVATE_DIR, find_file, read_file
 from .config import Settings
 from .job_evaluation import assign_categories
 from .schema import ValidationResult, prepare_employees, validate_employees, validate_job_evaluation
@@ -52,6 +53,31 @@ class Store:
     def load_sample(self, n: int = 900, seed: int = 7) -> ValidationResult:
         return self.load(synthetic.generate(n=n, seed=seed), synthetic.job_evaluation(), f"synthetic (n={n}, seed={seed})")
 
+    def load_local(self) -> ValidationResult | None:
+        """Load employees.(xlsx|csv) and optional job_evaluation.(xlsx|csv) from the
+        private data folder. Returns None if there is no employees file there."""
+        emp_path = find_file("employees")
+        if emp_path is None:
+            return None
+        je_path = find_file("job_evaluation")
+        try:
+            emp = read_file(emp_path)
+            je = read_file(je_path) if je_path else None
+        except Exception as exc:  # noqa: BLE001 - report any parse problem to the user
+            return ValidationResult(errors=[f"Could not read {emp_path.name}: {exc}"])
+        source = f"local file: {emp_path}" + (f" + {je_path.name}" if je_path else "")
+        return self.load(emp, je, source)
+
+    def load_default(self) -> None:
+        """Startup data: your local files if present, otherwise synthetic demo data."""
+        res = self.load_local()
+        if res is not None and res.ok:
+            return
+        self.load_sample()
+        if res is not None:  # a local file exists but failed validation: say so, loudly
+            self.dataset.source = "synthetic demo data (your local file could not be loaded, see Data & settings)"
+            self.dataset.validation.errors = [f"Local file in {PRIVATE_DIR}: {e}" for e in res.errors]
+
     def update_settings(self, settings: Settings) -> None:
         with self._lock:
             self.settings = settings
@@ -60,7 +86,7 @@ class Store:
     # ---- derived frame -------------------------------------------------
     def frame(self, entity: str | None = None) -> tuple[pd.DataFrame, dict]:
         if self.dataset is None:
-            self.load_sample()
+            self.load_default()
         with self._lock:
             if self._cache is None:
                 ref = pd.Timestamp(self.settings.reference_date) if self.settings.reference_date else None
