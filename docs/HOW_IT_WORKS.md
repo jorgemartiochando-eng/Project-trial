@@ -114,7 +114,11 @@ gap_threshold: float = Field(0.05, gt=0, lt=1)   # change 0.05 to 0.04
 
 **c) Your HR export uses different column names.** In `app/schema.py`, find
 `COLUMN_ALIASES` and add a line: *your name → app name*. Write your name in
-lower case, with underscores instead of spaces:
+lower case, with underscores in place of spaces and punctuation ("Code (company)"
+becomes `code_company`). The company export's names (User ID, Gender, Position
+title, Job classification, Code(company), Recruit date...) are already listed.
+If a required column is missing, the error message lists the columns found in
+your file so you can see which one to map:
 ```python
     "salary_2026": "base_salary",
     "business_unit": "legal_entity",

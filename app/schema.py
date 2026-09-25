@@ -7,6 +7,7 @@ produced by :func:`prepare_employees` (monthly FTE or hourly).
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -20,14 +21,14 @@ EMPLOYEE_COLUMNS: dict[str, tuple[bool, str]] = {
     "sex": (True, "F, M, or X (X/other is counted but excluded from binary gap maths)."),
     "job_title": (True, "Role name. Must match job_title in the job evaluation file if one is used."),
     "job_family": (True, "e.g. Engineering, Sales, Operations."),
-    "job_level": (True, "Integer grade/level (1 = most junior)."),
+    "job_level": (True, "Grade/level, a number (1 = most junior) or a code such as 'L3'."),
     "legal_entity": (True, "Reporting unit, usually one per member state (e.g. 'DE GmbH')."),
-    "country": (True, "ISO country code of the employment contract."),
+    "country": (False, "Country of the employment contract. Defaults to the company code (legal_entity)."),
     "department": (False, "Free text."),
     "location": (False, "Site or office (e.g. 'Aarhus'). Defaults to country. Used as a filter."),
     "cost_center": (False, "Cost center code or name. Defaults to department. Used as a filter."),
     "fte": (True, "Contracted working time as a fraction of full time (0 < fte <= 1)."),
-    "full_time_weekly_hours": (True, "Full-time weekly hours for this contract (e.g. 40)."),
+    "full_time_weekly_hours": (False, "Full-time weekly hours. Defaults to 160.33 hours a month at FTE 1 (about 37 a week)."),
     "base_salary": (True, "Annual ordinary basic salary at 100% FTE, reporting currency."),
     "variable_pay": (False, "Annual variable pay actually paid (bonus, commission). Default 0."),
     "allowances": (False, "Annual fixed complementary pay actually paid (allowances, shift premia). Default 0."),
@@ -66,13 +67,24 @@ class ValidationResult:
 
 
 # Your HR system's column names -> the names this app expects.
-# Add a line here if your export uses a different header (matching ignores
-# upper/lower case and treats spaces like underscores).
+# Add a line here if your export uses a different header. Matching ignores
+# upper/lower case, spaces, brackets and punctuation: "Code (company)" is
+# looked up as "code_company", "User ID" as "user_id".
 COLUMN_ALIASES: dict[str, str] = {
+    # --- Company export ---
+    "user_id": "employee_id",
+    "gender": "sex",
+    "position_title": "job_title",
+    "job_classification": "job_family",
+    "job_classifitcation": "job_family",
+    "code_company": "legal_entity",
+    "company_code": "legal_entity",
+    "recruit_date": "hire_date",
+    "recruitment_date": "hire_date",
+    # --- Other common HR system names ---
     "id": "employee_id",
     "employee_number": "employee_id",
     "personnel_number": "employee_id",
-    "gender": "sex",
     "position": "job_title",
     "title": "job_title",
     "job_function": "job_family",
@@ -80,27 +92,56 @@ COLUMN_ALIASES: dict[str, str] = {
     "level": "job_level",
     "company": "legal_entity",
     "entity": "legal_entity",
-    "fte_%": "fte",
+    "fte_percent": "fte",
+    "fte_pct": "fte",
     "weekly_hours": "full_time_weekly_hours",
+    "monthly_hours": "full_time_monthly_hours",
     "annual_base_salary": "base_salary",
     "base_pay": "base_salary",
     "bonus": "variable_pay",
     "start_date": "hire_date",
+    "date_of_hire": "hire_date",
     "site": "location",
     "office": "location",
     "city": "location",
     "cost_centre": "cost_center",
     "costcenter": "cost_center",
     "cost_center_code": "cost_center",
-    "date_of_hire": "hire_date",
 }
+
+# Full-time working time when the file has no hours column: FTE 1 = 160.33 hours a month.
+FULL_TIME_MONTHLY_HOURS = 160.33
+
+
+def _header_key(name) -> str:
+    return re.sub(r"[^0-9a-z]+", "_", str(name).strip().lower()).strip("_")
 
 
 def _normalise_headers(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    cols = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
-    df.columns = [COLUMN_ALIASES.get(c, c) for c in cols]
+    df.columns = [COLUMN_ALIASES.get(_header_key(c), _header_key(c)) for c in df.columns]
     return df
+
+
+def _parse_number(v):
+    """Numbers typed as text, e.g. '0,5' or '60.624,50' (European) or '60,624.50'."""
+    if isinstance(v, (int, float, np.number)) or v is None:
+        return v
+    t = str(v).strip().replace(" ", "").replace("\u00a0", "")
+    if not t:
+        return np.nan
+    if "," in t and "." in t:
+        t = t.replace(".", "").replace(",", ".") if t.rfind(",") > t.rfind(".") else t.replace(",", "")
+    elif "," in t:
+        head, _, tail = t.rpartition(",")
+        t = t.replace(",", "") if (len(tail) == 3 and t.count(",") >= 1 and "," not in head and len(head) > 1) else t.replace(",", ".")
+    return pd.to_numeric(t, errors="coerce")
+
+
+def _to_numeric(col: pd.Series) -> pd.Series:
+    if not pd.api.types.is_numeric_dtype(col):
+        col = col.astype(object).map(_parse_number)
+    return pd.to_numeric(col, errors="coerce")
 
 
 def validate_employees(raw: pd.DataFrame) -> tuple[pd.DataFrame, ValidationResult]:
@@ -111,8 +152,20 @@ def validate_employees(raw: pd.DataFrame) -> tuple[pd.DataFrame, ValidationResul
 
     missing = [c for c, (req, _) in EMPLOYEE_COLUMNS.items() if req and c not in df.columns]
     if missing:
-        res.errors.append(f"Missing required columns: {', '.join(missing)}")
+        res.errors.append(
+            f"Missing required columns: {', '.join(missing)}. Columns found in your file: "
+            f"{', '.join(map(str, raw.columns))}. If one of them is the same thing under another "
+            "name, add it to COLUMN_ALIASES in app/schema.py."
+        )
         return df, res
+
+    if "country" not in df.columns:
+        df["country"] = df["legal_entity"]
+    if "full_time_weekly_hours" not in df.columns:
+        if "full_time_monthly_hours" in df.columns:
+            df["full_time_weekly_hours"] = _to_numeric(df["full_time_monthly_hours"]) * 12 / WEEKS_PER_YEAR
+        else:
+            df["full_time_weekly_hours"] = FULL_TIME_MONTHLY_HOURS * 12 / WEEKS_PER_YEAR
 
     for col in OPTIONAL_ZERO_COLS:
         if col not in df.columns:
@@ -140,15 +193,23 @@ def validate_employees(raw: pd.DataFrame) -> tuple[pd.DataFrame, ValidationResul
             "female/male gap calculations, as the Directive defines gaps between female and male workers."
         )
 
+    level_raw = df["job_level"]
     for col in NUMERIC_EMPLOYEE_COLS:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+        if col != "job_level":
+            df[col] = _to_numeric(df[col])
+    # Job level: keep numbers as integers; codes such as "L3" or "Band B" stay text.
+    level_num = _to_numeric(level_raw)
+    if level_num.notna().sum() == level_raw.notna().sum():
+        df["job_level"] = level_num
+    else:
+        df["job_level"] = level_raw.where(level_raw.isna(), level_raw.astype(str).str.strip())
     for col in OPTIONAL_ZERO_COLS:
         df[col] = df[col].fillna(0.0)
     if df["fte"].max() > 1.5:  # FTE given as a percentage (e.g. 80) rather than a fraction
         df["fte"] = df["fte"] / 100
         res.warnings.append("fte looked like a percentage (values above 1), so it was divided by 100.")
 
-    for col in ("job_title", "job_family", "legal_entity", "country"):
+    for col in ("employee_id", "job_title", "job_family", "legal_entity", "country"):
         df[col] = df[col].astype(str).str.strip()
     df["department"] = df["department"].fillna("").astype(str)
     df["location"] = df["location"].where(df["location"].notna(), df["country"]).astype(str).str.strip()
@@ -174,7 +235,14 @@ def validate_employees(raw: pd.DataFrame) -> tuple[pd.DataFrame, ValidationResul
     if neg.any():
         res.warnings.append(f"{int(neg.sum())} rows have negative complementary pay; check for clawbacks.")
 
-    df["job_level"] = df["job_level"].astype(int)
+    if pd.api.types.is_numeric_dtype(df["job_level"]):
+        df["job_level"] = df["job_level"].astype(int)
+    if len(df) and df["base_salary"].median() < 15000:
+        res.warnings.append(
+            f"base_salary looks low (median {df['base_salary'].median():,.0f}). It should be the ANNUAL "
+            "salary at 100% FTE. If your file has monthly salaries, multiply them by 12 (or by the number "
+            "of salary payments per year)."
+        )
     return df.reset_index(drop=True), res
 
 

@@ -189,3 +189,51 @@ def test_art9_explore_filters_and_breakdown():
     # headline a) equals the mean-based stats
     s = eng["stats"]["total"]
     assert eng["indicators"]["a"]["gap_pct"] == pytest.approx((s["mean_M"] - s["mean_F"]) / s["mean_M"] * 100)
+
+
+def _company_style_export(**overrides):
+    """A file shaped like the company HR export: its own headers, no country, no hours."""
+    df = synthetic.generate(n=200, seed=11)
+    df = df.drop(columns=["country", "full_time_weekly_hours", "department", "location", "cost_center"])
+    df = df.rename(columns={
+        "employee_id": "User ID", "sex": "Gender", "job_title": "Position title",
+        "job_family": "Job classification", "job_level": "Job level", "legal_entity": "Code(company)",
+        "fte": "FTE", "base_salary": "Base salary", "hire_date": "Recruit date",
+    })
+    for k, v in overrides.items():
+        df[k] = v(df[k]) if callable(v) else v
+    return df
+
+
+def test_company_export_headers_are_recognised():
+    out, res = validate_employees(_company_style_export())
+    assert res.ok, res.errors
+    assert len(out) == 200
+    assert (out["country"] == out["legal_entity"]).all()
+    # FTE 1 = 160.33 hours a month
+    assert out["full_time_weekly_hours"].iloc[0] * 52 / 12 == pytest.approx(160.33)
+    df = prepare_employees(out, pay_basis="hourly")
+    r = df.iloc[0]
+    assert r["hourly_basic"] == pytest.approx(r["base_salary"] / (160.33 * 12))
+
+
+def test_company_export_variants():
+    df = _company_style_export(**{
+        "Job level": lambda s: "L" + s.astype(str),          # text level codes
+        "FTE": lambda s: s.map(lambda v: f"{v:.2f}".replace(".", ",")),  # "0,50"
+    })
+    df = df.rename(columns={"Code(company)": "Code (company)"})
+    out, res = validate_employees(df)
+    assert res.ok, res.errors
+    assert len(out) == 200
+    assert set(out["fte"].unique()) <= {0.5, 0.6, 0.8, 1.0}
+    assert out["job_level"].iloc[0].startswith("L")
+    prepared = prepare_employees(out)
+    cats, _ = assign_categories(prepared, None, Settings())
+    assert cats["category_id"].str.startswith("L-L").all()
+
+
+def test_missing_column_message_lists_what_was_found():
+    _, res = validate_employees(pd.DataFrame({"User ID": [1], "Salary": [1]}))
+    assert not res.ok
+    assert "Columns found in your file: User ID, Salary" in res.errors[0]

@@ -713,8 +713,9 @@ async function renderDataTab() {
   table($("#roles-map"), ["Category", "Job families", "Roles (headcount)"], roles.map((c) =>
     `<tr><td>${esc(c.category_label)}</td><td class="small">${esc(c.job_families.join(", "))}</td>
      <td class="small">${c.roles.map((r) => `${esc(r.job_title)} (${r.headcount})`).join(", ")}</td></tr>`));
-  table($("#schema"), ["Column", "Required", "Meaning"], schema.employees.map((c) =>
-    `<tr><td><code>${esc(c.name)}</code></td><td>${c.required ? "Yes" : "No"}</td><td>${esc(c.description)}</td></tr>`));
+  table($("#schema"), ["Column", "Required", "Meaning", "Also recognised as"], schema.employees.map((c) =>
+    `<tr><td><code>${esc(c.name)}</code></td><td>${c.required ? "Yes" : "No"}</td><td>${esc(c.description)}</td>
+     <td class="small">${esc((c.also_accepted || []).join(", "))}</td></tr>`));
 }
 
 async function submitSettings(ev) {

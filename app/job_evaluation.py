@@ -19,6 +19,14 @@ from .config import Settings
 FACTORS = ["skills", "effort", "responsibility", "working_conditions"]
 
 
+def level_code(lvl) -> str:
+    """'L03' for numeric levels, 'L-B2' for text codes."""
+    try:
+        return f"L{int(lvl):02d}"
+    except (TypeError, ValueError):
+        return f"L-{lvl}"
+
+
 def score_roles(job_eval: pd.DataFrame, settings: Settings) -> pd.DataFrame:
     w = settings.weights.normalised()
     df = job_eval.copy()
@@ -39,7 +47,7 @@ def assign_categories(
     """Return employees with category_id/category_label and metadata about the method."""
     emp = employees.copy()
     if job_eval is None or job_eval.empty:
-        emp["category_id"] = [f"L{lvl:02d}" for lvl in emp["job_level"]]
+        emp["category_id"] = [level_code(lvl) for lvl in emp["job_level"]]
         emp["category_label"] = [f"Level {lvl}" for lvl in emp["job_level"]]
         emp["evaluation_score"] = np.nan
         return emp, {
@@ -58,7 +66,7 @@ def assign_categories(
     if unmatched:
         # Keep them visible rather than dropping: bucket by level and report.
         mask = emp["category_id"].isna()
-        emp.loc[mask, "category_id"] = [f"U-L{lvl:02d}" for lvl in emp.loc[mask, "job_level"]]
+        emp.loc[mask, "category_id"] = [f"U-{level_code(lvl)}" for lvl in emp.loc[mask, "job_level"]]
         emp.loc[mask, "category_label"] = [f"Unevaluated, level {lvl}" for lvl in emp.loc[mask, "job_level"]]
     return emp, {
         "method": "job_evaluation",

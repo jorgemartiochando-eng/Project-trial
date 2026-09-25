@@ -19,7 +19,7 @@ from .data_io import PRIVATE_DIR, read_table
 from .job_evaluation import roles_by_category
 from .metrics import _clean, assessment_key
 from .pay_ranges import pay_ranges, right_to_information
-from .schema import EMPLOYEE_COLUMNS, JOB_EVALUATION_COLUMNS, template_csv
+from .schema import COLUMN_ALIASES, EMPLOYEE_COLUMNS, JOB_EVALUATION_COLUMNS, template_csv
 from .store import store
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -109,7 +109,11 @@ def template(name: str):
 
 @app.get("/api/schema")
 def schema():
-    fmt = lambda cols: [{"name": k, "required": r, "description": d} for k, (r, d) in cols.items()]  # noqa: E731
+    aliases: dict[str, list[str]] = {}
+    for alias, target in COLUMN_ALIASES.items():
+        aliases.setdefault(target, []).append(alias)
+    fmt = lambda cols: [{"name": k, "required": r, "description": d, "also_accepted": aliases.get(k, [])}  # noqa: E731
+                        for k, (r, d) in cols.items()]
     return {"employees": fmt(EMPLOYEE_COLUMNS), "job_evaluation": fmt(JOB_EVALUATION_COLUMNS)}
 
 
